@@ -3867,6 +3867,13 @@
         reportPeriod: 'all',
         reportDateFrom: '',
         reportDateTo: '',
+        reportSlowThreshold: 60,
+        stockCardProductId: '',
+        stockCardWarehouse: 'Semua Gudang',
+        stockCardPeriod: 'all',
+        stockCardDateFrom: '',
+        stockCardDateTo: '',
+        stockCardSearchQuery: '',
         dashboardPeriod: 'this-month',
         dashboardDateFrom: '',
         dashboardDateTo: '',
@@ -3918,7 +3925,7 @@
             { id: 'opname', label: 'Stok Opname', icon: 'clipboard' }
           ]
         },
-        { group: 'Inventori', items: [{ id: 'stock', label: 'Cek Stok', icon: 'box' }, { id: 'reports', label: 'Pusat Laporan', icon: 'report' }] },
+        { group: 'Inventori', items: [{ id: 'stock', label: 'Cek Stok', icon: 'box' }, { id: 'stockcard', label: 'Kartu Stok', icon: 'clipboard' }, { id: 'reports', label: 'Pusat Laporan', icon: 'report' }] },
         {
           group: 'Pengelolaan', items: [
             { id: 'products', label: 'Master Barang', icon: 'package' },
@@ -3936,6 +3943,7 @@
           group: 'Menu Staf Gudang', items: [
             { id: 'dashboard', label: 'Beranda', icon: 'grid' },
             { id: 'stock', label: 'Cek Stok', icon: 'box' },
+            { id: 'stockcard', label: 'Kartu Stok', icon: 'clipboard' },
             { id: 'outgoing', label: 'Barang Keluar', icon: 'out' },
             { id: 'transfer', label: 'Transfer Gudang', icon: 'transfer' },
             { id: 'opname', label: 'Stok Opname', icon: 'clipboard' },
@@ -3948,6 +3956,7 @@
       const routeMeta = {
         dashboard: ['Dashboard', 'Ringkasan aktivitas seluruh gudang'],
         stock: ['Cek Stok', 'Saldo barang terkini per gudang'],
+        stockcard: ['Kartu Stok', 'Buku besar dan histori mutasi barang'],
         incoming: ['Barang Masuk', 'Riwayat & pencatatan penerimaan barang'],
         outgoing: ['Barang Keluar', 'Riwayat & pencatatan pengeluaran barang'],
         damaged: ['Barang Bermasalah', 'Pencatatan & penanganan barang rusak, cacat, atau hilang'],
@@ -4996,17 +5005,40 @@
         ];
 
         const topOutProducts = [...store.products]
-          .map(p => ({
-            name: p.name,
-            qty: filteredTx.filter(t => t.type === 'Barang Keluar').reduce((sum, t) => {
-              const line = (t.details || []).find(d => d.productId === p.id);
-              return sum + (line ? line.qty : 0);
-            }, 0)
-          }))
+          .map(p => {
+            let totalQtyOut = 0;
+            let txCount = 0;
+            filteredTx.filter(t => (t.type === 'Barang Keluar' || (t.type || '').toLowerCase().includes('keluar'))).forEach(t => {
+              let matched = false;
+              if (Array.isArray(t.details) && t.details.length > 0) {
+                t.details.forEach(d => {
+                  if (d.productId === p.id || d.sku === p.sku || d.name === p.name) {
+                    totalQtyOut += Number(d.qty || 0);
+                    matched = true;
+                  }
+                });
+              } else if (t.productId === p.id || t.sku === p.sku || t.product === p.name || t.name === p.name) {
+                totalQtyOut += Number(t.qty || 0);
+                matched = true;
+              }
+              if (matched) txCount++;
+            });
+            return {
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              category: p.category,
+              unit: p.unit,
+              qty: totalQtyOut,
+              txCount: txCount
+            };
+          })
+          .filter(x => x.qty > 0)
           .sort((a, b) => b.qty - a.qty)
           .slice(0, 5);
 
-        const maxOut = topOutProducts[0]?.qty || 100;
+        const totalTopOutQty = topOutProducts.reduce((sum, x) => sum + x.qty, 0);
+        const maxOut = topOutProducts[0]?.qty || 1;
 
         const dateFilterControls = `
           <div class="dashboard-date-filter" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -5085,7 +5117,46 @@
           <div class="dashboard-grid">
             <div class="stack">
               <article class="card"><div class="card-header"><div class="card-title"><h3>Pergerakan Stok</h3><p>Total unit masuk dan keluar selama 7 hari</p></div><div class="legend"><span><i style="background:#299979"></i>Masuk</span><span><i style="background:#e0a33d"></i>Keluar</span></div></div><div class="card-body"><div class="chart-wrap">${lineChart()}</div></div></article>
-              <article class="card"><div class="card-header"><div class="card-title"><h3>Barang Paling Banyak Keluar</h3><p>Berdasarkan kuantitas keluar terkini</p></div><button class="btn btn-ghost btn-sm" data-route="reports">Lihat laporan ${icon('arrow')}</button></div><div class="card-body"><div class="bars">${topOutProducts.map(x => `<div class="bar-item"><div class="bar-label">${x.name}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, Math.round((x.qty / maxOut) * 100))}%"></div></div><div class="bar-value">${x.qty}</div></div>`).join('')}</div></div></article>
+              <article class="card">
+                <div class="card-header">
+                  <div class="card-title">
+                    <h3>Barang Paling Banyak Keluar</h3>
+                    <p>Produk dengan kuantitas keluar tertinggi (${periodText})</p>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" data-route="reports" title="Lihat semua laporan">Lihat laporan ${icon('arrow')}</button>
+                </div>
+                <div class="card-body">
+                  ${topOutProducts.length === 0 ? `
+                    <div style="padding:24px 12px;text-align:center;color:var(--ink-500);font-size:12px;">
+                      Belum ada pergerakan barang keluar pada periode ${periodText.toLowerCase()}.
+                    </div>
+                  ` : `
+                    <div class="bars" style="display:flex;flex-direction:column;gap:12px;">
+                      ${topOutProducts.map((x, idx) => {
+                        const rankLabel = idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`;
+                        const pct = totalTopOutQty > 0 ? Math.round((x.qty / totalTopOutQty) * 100) : 0;
+                        return `
+                          <div class="bar-item" style="cursor:pointer;padding:6px 8px;border-radius:8px;transition:background 0.15s;" data-action="view-stock-card" data-id="${x.id}" title="Klik untuk buka kartu stok ${escapeHtml(x.name)}">
+                            <div class="bar-label" style="display:flex;align-items:center;gap:8px;min-width:140px;">
+                              <span style="font-weight:800;font-size:12px;color:var(--brand-700);width:28px;">${rankLabel}</span>
+                              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                <strong>${escapeHtml(x.name)}</strong>
+                                <small style="display:block;color:var(--ink-500);font-size:10px;">${escapeHtml(x.sku)} · ${x.txCount}x keluar</small>
+                              </span>
+                            </div>
+                            <div class="bar-track" style="height:10px;border-radius:5px;flex:1;">
+                              <div class="bar-fill" style="width:${Math.min(100, Math.round((x.qty / maxOut) * 100))}%;background:linear-gradient(90deg, #176b57, #33b895);"></div>
+                            </div>
+                            <div class="bar-value" style="font-size:12px;font-weight:700;white-space:nowrap;min-width:65px;text-align:right;">
+                              ${rupiah.format(x.qty)} <small style="font-weight:normal;color:var(--ink-500);">${escapeHtml(x.unit)}</small>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
+                </div>
+              </article>
             </div>
             <div class="stack">
               <article class="card"><div class="card-header"><div class="card-title"><h3>Perlu Perhatian</h3><p>Stok menipis dan habis</p></div><button class="btn btn-ghost btn-sm" data-route="stock">Lihat semua</button></div><div class="card-body"><div class="alert-list">${(() => {
@@ -5212,6 +5283,297 @@
         }).join('')}</div>
             <div class="table-footer"><span>Menampilkan ${filtered.length} dari ${store.products.length} barang</span><div class="pagination"><button class="page-btn active">1</button></div></div>
           </article>`;
+      }
+
+      function stockCardPage() {
+        const staffWh = (state.currentUser && state.currentUser.warehouse && state.currentUser.warehouse !== 'Semua Gudang') ? state.currentUser.warehouse : 'Gudang Utama';
+        const allowedWarehouse = state.role === 'STAFF' ? staffWh : (state.stockCardWarehouse || 'Semua Gudang');
+
+        const activeProducts = store.products.filter(p => p.active !== false);
+        if (activeProducts.length === 0) {
+          return `${toolbar('Kartu Stok', 'Buku mutasi pergerakan barang.', '')}
+            <div class="card" style="padding:40px;text-align:center;">${emptyState('package', 'Belum Ada Barang', 'Silakan tambahkan data produk terlebih dahulu di Master Barang.')}</div>`;
+        }
+
+        let selProdId = state.stockCardProductId;
+        let prod = activeProducts.find(p => p.id === selProdId);
+        if (!prod) {
+          prod = activeProducts[0];
+          selProdId = prod.id;
+          state.stockCardProductId = selProdId;
+        }
+
+        const period = state.stockCardPeriod || 'all';
+        const dFrom = state.stockCardDateFrom;
+        const dTo = state.stockCardDateTo;
+        const periodLabels = {
+          all: 'Semua Waktu',
+          today: 'Hari Ini',
+          '7days': '7 Hari Terakhir',
+          '30days': '30 Hari Terakhir',
+          'this-month': 'Bulan Ini',
+          custom: 'Rentang Kustom'
+        };
+
+        const whOptions = state.role === 'STAFF'
+          ? [staffWh]
+          : ['Semua Gudang', ...store.warehouses.map(w => w.name)];
+
+        // Get full ledger for this product sorted chronologically (oldest to newest)
+        const rawLedger = (store.stockLedger || []).filter(l => l.productId === prod.id);
+        const sortedChronologicalLedger = [...rawLedger].sort((a, b) => parseDateTimeToSort(a.date) - parseDateTimeToSort(b.date));
+
+        // Filter by warehouse
+        const whLedger = allowedWarehouse === 'Semua Gudang'
+          ? sortedChronologicalLedger
+          : sortedChronologicalLedger.filter(l => l.warehouse === allowedWarehouse);
+
+        let runningBalance = 0;
+        let saldoAwal = 0;
+        let totalMasuk = 0;
+        let totalKeluar = 0;
+        const processedRows = [];
+
+        whLedger.forEach(l => {
+          const isPlus = ['IN', 'TRANSFER_IN', 'ADJUSTMENT_PLUS', 'OPENING'].includes(l.type);
+          const isMinus = ['OUT', 'TRANSFER_OUT', 'DAMAGE', 'ADJUSTMENT_MINUS'].includes(l.type);
+          const qty = Number(l.qty || 0);
+
+          const inPeriod = isTxInPeriod(l.date, period, dFrom, dTo);
+
+          if (!inPeriod && period !== 'all') {
+            const txTime = parseDateTimeToSort(l.date);
+            let periodStartTime = 0;
+            const now = new Date();
+            if (period === 'today') {
+              const s = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              periodStartTime = s.getTime();
+            } else if (period === '7days') {
+              periodStartTime = now.getTime() - (7 * 86400000);
+            } else if (period === '30days') {
+              periodStartTime = now.getTime() - (30 * 86400000);
+            } else if (period === 'this-month') {
+              const s = new Date(now.getFullYear(), now.getMonth(), 1);
+              periodStartTime = s.getTime();
+            } else if (period === 'custom' && dFrom) {
+              periodStartTime = new Date(dFrom + 'T00:00:00').getTime();
+            }
+            if (txTime < periodStartTime) {
+              if (isPlus) saldoAwal += qty;
+              else if (isMinus) saldoAwal -= qty;
+            }
+          }
+
+          if (isPlus) runningBalance += qty;
+          else if (isMinus) runningBalance -= qty;
+
+          if (inPeriod) {
+            if (isPlus) totalMasuk += qty;
+            if (isMinus) totalKeluar += qty;
+
+            processedRows.push({
+              id: l.id,
+              date: l.date,
+              warehouse: l.warehouse,
+              type: l.type,
+              qtyIn: isPlus ? qty : 0,
+              qtyOut: isMinus ? qty : 0,
+              balance: runningBalance,
+              refNo: l.refNo || '-',
+              user: l.user || 'Sistem',
+              notes: l.notes || '',
+              photo: l.photo || ''
+            });
+          }
+        });
+
+        const displayRows = [...processedRows].reverse();
+        const saldoAkhir = (period === 'all') ? runningBalance : (saldoAwal + totalMasuk - totalKeluar);
+        const currentPhysStock = totalStock(prod, allowedWarehouse);
+        const [stStateName, stBadgeClass] = stockState(prod, allowedWarehouse);
+
+        const typeBadge = (type) => {
+          switch(type) {
+            case 'IN': return '<span class="badge success">Barang Masuk</span>';
+            case 'OUT': return '<span class="badge danger">Barang Keluar</span>';
+            case 'TRANSFER_IN': return '<span class="badge info">Transfer Masuk</span>';
+            case 'TRANSFER_OUT': return '<span class="badge warning">Transfer Keluar</span>';
+            case 'DAMAGE': return '<span class="badge danger">Barang Rusak</span>';
+            case 'OPNAME':
+            case 'ADJUSTMENT_PLUS':
+            case 'ADJUSTMENT_MINUS': return '<span class="badge neutral">Penyesuaian Opname</span>';
+            case 'OPENING': return '<span class="badge neutral">Saldo Awal</span>';
+            default: return `<span class="badge neutral">${escapeHtml(type)}</span>`;
+          }
+        };
+
+        const prodPhoto = prod.photo || prod.foto || '';
+
+        return `${toolbar('Kartu Stok Barang', 'Buku besar mutasi fisik barang dan rincian transaksi masuk / keluar.', `
+          <button class="btn btn-secondary" data-action="print-stock-card">${icon('printer')} Cetak Kartu Stok</button>
+          <button class="btn btn-primary" data-action="export-stock-card">${icon('download')} Ekspor Excel (.xlsx)</button>
+        `)}
+          <div class="card filters" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:16px;">
+            <div class="field" style="grid-column:span 2;min-width:260px;">
+              <label for="stockCardProductSelect">Pilih Barang *</label>
+              <select id="stockCardProductSelect" class="control" style="font-weight:600;">
+                ${activeProducts.map(p => `
+                  <option value="${p.id}" ${p.id === prod.id ? 'selected' : ''}>${escapeHtml(p.name)} [${escapeHtml(p.sku)}] — Total: ${totalStock(p)} ${escapeHtml(p.unit)}</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label for="stockCardWhSelect">Lokasi Gudang</label>
+              <select id="stockCardWhSelect" class="control">
+                ${whOptions.map(w => `<option value="${w}" ${allowedWarehouse === w ? 'selected' : ''}>${w}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label for="stockCardPeriodSelect">Periode Mutasi</label>
+              <select id="stockCardPeriodSelect" class="control">
+                <option value="all" ${period === 'all' ? 'selected' : ''}>Semua Waktu</option>
+                <option value="today" ${period === 'today' ? 'selected' : ''}>Hari Ini</option>
+                <option value="7days" ${period === '7days' ? 'selected' : ''}>7 Hari Terakhir</option>
+                <option value="30days" ${period === '30days' ? 'selected' : ''}>30 Hari Terakhir</option>
+                <option value="this-month" ${period === 'this-month' ? 'selected' : ''}>Bulan Ini</option>
+                <option value="custom" ${period === 'custom' ? 'selected' : ''}>Kustom Tanggal…</option>
+              </select>
+            </div>
+            ${period === 'custom' ? `
+              <div class="field">
+                <label for="stockCardDateFrom">Dari Tanggal</label>
+                <input type="date" id="stockCardDateFrom" class="control" value="${state.stockCardDateFrom || ''}">
+              </div>
+              <div class="field">
+                <label for="stockCardDateTo">Sampai Tanggal</label>
+                <input type="date" id="stockCardDateTo" class="control" value="${state.stockCardDateTo || ''}">
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Product Details Card -->
+          <div class="card" style="padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div style="display:flex;align-items:center;gap:16px;min-width:240px;">
+              ${prodPhoto ? `
+                <img src="${escapeHtml(prodPhoto)}" alt="${escapeHtml(prod.name)}" style="width:58px;height:58px;object-fit:cover;border-radius:10px;border:1px solid var(--ink-200);cursor:pointer;" data-action="view-photo" data-photo="${escapeHtml(prodPhoto)}" data-title="Foto Produk: ${escapeHtml(prod.name)}" title="Klik untuk memperbesar">
+              ` : `
+                <div class="avatar" style="width:58px;height:58px;font-size:20px;border-radius:12px;background:var(--brand-50);color:var(--brand-700);border:1px solid var(--brand-200);">${escapeHtml(prod.name.slice(0, 2).toUpperCase())}</div>
+              `}
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <h2 style="margin:0;font-size:18px;">${escapeHtml(prod.name)}</h2>
+                  <span class="badge ${stBadgeClass}" style="font-size:11px;">${stStateName}</span>
+                </div>
+                <div style="margin-top:4px;font-size:12px;color:var(--ink-500);">
+                  SKU: <strong>${escapeHtml(prod.sku)}</strong> · Kategori: <strong>${escapeHtml(prod.category)}</strong> · Satuan: <strong>${escapeHtml(prod.unit)}</strong> · Batas Min: <strong>${getProductMin(prod)} ${escapeHtml(prod.unit)}</strong>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              ${store.warehouses.map(w => `
+                <div style="padding:6px 12px;background:var(--surface);border:1px solid var(--ink-200);border-radius:8px;font-size:11px;">
+                  <span style="color:var(--ink-500);display:block;">${escapeHtml(w.name)}</span>
+                  <strong style="font-size:13px;color:var(--ink-900);">${prod.stocks[w.name] || 0} ${escapeHtml(prod.unit)}</strong>
+                </div>
+              `).join('')}
+              <div style="padding:6px 14px;background:var(--brand-50);border:1px solid var(--brand-200);border-radius:8px;font-size:11px;">
+                <span style="color:var(--brand-700);display:block;font-weight:600;">Total Fisik</span>
+                <strong style="font-size:14px;color:var(--brand-700);">${currentPhysStock} ${escapeHtml(prod.unit)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Metric Cards -->
+          <div class="stats-grid" style="grid-template-columns:repeat(4, minmax(0, 1fr));margin-bottom:16px;">
+            <article class="card stat-card" style="--accent:var(--ink-600);--accent-soft:var(--ink-100);">
+              <div class="stat-top"><span class="stat-label">Saldo Awal</span><span class="stat-icon">${icon('box')}</span></div>
+              <div class="stat-value" style="font-size:22px;">${rupiah.format(saldoAwal)} <small style="font-size:12px;color:var(--ink-500);">${escapeHtml(prod.unit)}</small></div>
+              <div class="stat-meta">Sebelum periode terpilih</div>
+            </article>
+            <article class="card stat-card" style="--accent:var(--brand-600);--accent-soft:var(--brand-50);">
+              <div class="stat-top"><span class="stat-label">Total Masuk (+)</span><span class="stat-icon">${icon('in')}</span></div>
+              <div class="stat-value" style="font-size:22px;color:var(--brand-600);">+${rupiah.format(totalMasuk)} <small style="font-size:12px;color:var(--ink-500);">${escapeHtml(prod.unit)}</small></div>
+              <div class="stat-meta">Barang Masuk & Transfer In</div>
+            </article>
+            <article class="card stat-card" style="--accent:var(--danger);--accent-soft:var(--danger-soft);">
+              <div class="stat-top"><span class="stat-label">Total Keluar (-)</span><span class="stat-icon">${icon('out')}</span></div>
+              <div class="stat-value" style="font-size:22px;color:var(--danger);">-${rupiah.format(totalKeluar)} <small style="font-size:12px;color:var(--ink-500);">${escapeHtml(prod.unit)}</small></div>
+              <div class="stat-meta">Penjualan, Transfer Out, Rusak</div>
+            </article>
+            <article class="card stat-card" style="--accent:var(--info);--accent-soft:var(--info-soft);">
+              <div class="stat-top"><span class="stat-label">Saldo Akhir Periode</span><span class="stat-icon">${icon('check')}</span></div>
+              <div class="stat-value" style="font-size:22px;color:var(--info);">${rupiah.format(saldoAkhir)} <small style="font-size:12px;color:var(--ink-500);">${escapeHtml(prod.unit)}</small></div>
+              <div class="stat-meta">Saldo pada akhir periode</div>
+            </article>
+          </div>
+
+          <!-- Transaction Table Card -->
+          <article class="card" id="stockCardPrintSection">
+            <div class="card-header">
+              <div class="card-title">
+                <h3>Buku Besar Mutasi Stok</h3>
+                <p>Riwayat kronologis mutasi untuk ${escapeHtml(prod.name)} (${allowedWarehouse}) · ${periodLabels[period] || period}</p>
+              </div>
+              <span class="badge neutral">${displayRows.length} Baris Mutasi</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Waktu / Tanggal</th>
+                    <th>Lokasi Gudang</th>
+                    <th>Jenis Mutasi</th>
+                    <th>No Referensi</th>
+                    <th style="text-align:right;">Masuk (+)</th>
+                    <th style="text-align:right;">Keluar (-)</th>
+                    <th style="text-align:right;">Saldo Berjalan</th>
+                    <th>Petugas</th>
+                    <th>Keterangan & Bukti</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${displayRows.length === 0 ? `
+                    <tr><td colspan="9" style="padding:40px;text-align:center;color:var(--ink-500);">
+                      ${emptyState('clipboard', 'Belum Ada Mutasi', 'Tidak ada transaksi untuk barang ini pada rentang filter yang dipilih.')}
+                    </td></tr>
+                  ` : displayRows.map(r => `
+                    <tr>
+                      <td><small style="font-weight:600;">${r.date}</small></td>
+                      <td><span class="badge neutral">${escapeHtml(r.warehouse)}</span></td>
+                      <td>${typeBadge(r.type)}</td>
+                      <td>
+                        <strong>${escapeHtml(r.refNo)}</strong>
+                      </td>
+                      <td style="text-align:right;">
+                        ${r.qtyIn > 0 ? `<strong style="color:var(--brand-600);font-size:13px;">+${rupiah.format(r.qtyIn)}</strong>` : '<span style="color:var(--ink-300);">-</span>'}
+                      </td>
+                      <td style="text-align:right;">
+                        ${r.qtyOut > 0 ? `<strong style="color:var(--danger);font-size:13px;">-${rupiah.format(r.qtyOut)}</strong>` : '<span style="color:var(--ink-300);">-</span>'}
+                      </td>
+                      <td style="text-align:right;">
+                        <strong class="qty" style="font-size:14px;color:var(--ink-950);">${rupiah.format(r.balance)}</strong> <small style="color:var(--ink-500);">${escapeHtml(prod.unit)}</small>
+                      </td>
+                      <td><small>${escapeHtml(r.user)}</small></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                          <span style="font-size:12px;color:var(--ink-600);">${escapeHtml(r.notes || '—')}</span>
+                          ${r.photo ? `
+                            <button class="icon-btn" style="width:24px;height:24px;color:var(--brand-600);" data-action="view-photo" data-photo="${escapeHtml(r.photo)}" data-title="Bukti Mutasi: ${escapeHtml(r.refNo)}" title="Lihat Foto Bukti">
+                              ${icon('camera')}
+                            </button>
+                          ` : ''}
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="table-footer">
+              <span>Menampilkan ${displayRows.length} entri mutasi · Saldo Fisik Terkini: <strong>${currentPhysStock} ${escapeHtml(prod.unit)}</strong></span>
+            </div>
+          </article>
+        `;
       }
 
       function transactionPage(type) {
@@ -5720,6 +6082,111 @@
             return matchPeriod && text.includes(q);
           });
           rows = list.map(a => [a.time, a.user, a.action, a.entity, a.ref, a.description]);
+        } else if (type === 'slow-moving') {
+          title = 'Laporan Analisis Slow Moving & Dead Stock';
+          headers = ['SKU', 'Nama Barang', 'Kategori', 'Gudang', 'Stok Saat Ini', 'Satuan', 'Estimasi Nilai Aset (Rp)', 'Terakhir Keluar', 'Hari Tidak Bergerak', 'Total Keluar (Periode)', 'Status Analisis'];
+          const thresholdDays = Number(state.reportSlowThreshold || 60);
+          const nowMs = Date.now();
+
+          const activeProds = store.products.filter(p => {
+            const matchCat = cat === 'Semua Kategori' || p.category === cat;
+            const matchQ = `${p.name} ${p.sku} ${p.category}`.toLowerCase().includes(q);
+            return p.active !== false && matchCat && matchQ;
+          });
+
+          let deadCount = 0;
+          let slowCount = 0;
+          let totalAssetStuck = 0;
+
+          const itemsAnalysis = activeProds.map(p => {
+            const currentStock = totalStock(p, wh);
+
+            let lastOutTime = 0;
+            let lastOutDateStr = 'Belum Ada';
+            let recentOutQty = 0;
+
+            (store.transactions || []).forEach(t => {
+              const isOut = t.type === 'Barang Keluar' || (t.type || '').toLowerCase().includes('keluar');
+              if (isOut) {
+                if (wh !== 'Semua Gudang' && t.warehouse !== wh) return;
+                let matchedQty = 0;
+                if (Array.isArray(t.details) && t.details.length > 0) {
+                  t.details.forEach(d => {
+                    if (d.productId === p.id || d.sku === p.sku || d.name === p.name) {
+                      matchedQty += Number(d.qty || 0);
+                    }
+                  });
+                } else if (t.productId === p.id || t.sku === p.sku || t.product === p.name || t.name === p.name) {
+                  matchedQty += Number(t.qty || 0);
+                }
+
+                if (matchedQty > 0) {
+                  const tTime = parseDateTimeToSort(t.date);
+                  if (tTime > lastOutTime) {
+                    lastOutTime = tTime;
+                    lastOutDateStr = t.date;
+                  }
+                  if (isTxInPeriod(t.date, period, dFrom, dTo)) {
+                    recentOutQty += matchedQty;
+                  }
+                }
+              }
+            });
+
+            const daysWithoutOut = lastOutTime > 0 ? Math.floor((nowMs - lastOutTime) / (1000 * 60 * 60 * 24)) : 999;
+            const unitPrice = Number(p.buyPrice || p.price || 0);
+            const assetValue = currentStock * unitPrice;
+
+            let status = 'Fast Moving / Sehat';
+            if (currentStock <= 0) {
+              status = 'Stok Kosong';
+            } else if (lastOutTime === 0 || daysWithoutOut >= 90) {
+              status = '🔴 Dead Stock (Stok Mati)';
+              deadCount++;
+              totalAssetStuck += assetValue;
+            } else if (daysWithoutOut >= thresholdDays || (currentStock > 10 && recentOutQty < (currentStock * 0.15))) {
+              status = '🟡 Slow Moving (Lambat)';
+              slowCount++;
+              totalAssetStuck += assetValue;
+            }
+
+            return {
+              product: p,
+              currentStock,
+              assetValue,
+              lastOutDateStr,
+              daysWithoutOut: daysWithoutOut === 999 ? 'Belum Pernah' : `${daysWithoutOut} hari`,
+              daysCount: daysWithoutOut,
+              recentOutQty,
+              status
+            };
+          });
+
+          // Urutkan barang yang paling lama tidak bergerak di atas
+          itemsAnalysis.sort((a, b) => b.daysCount - a.daysCount);
+
+          rows = itemsAnalysis.map(x => {
+            totalUnits += x.currentStock;
+            return [
+              x.product.sku,
+              x.product.name,
+              x.product.category,
+              wh,
+              x.currentStock,
+              x.product.unit,
+              rupiah.format(x.assetValue),
+              x.lastOutDateStr,
+              x.daysWithoutOut,
+              x.recentOutQty,
+              x.status
+            ];
+          });
+
+          return {
+            title, headers, rows, totalUnits, count: rows.length,
+            periodLabel: `Ambang Batas: ${thresholdDays} Hari Tidak Keluar`,
+            deadCount, slowCount, totalAssetStuck
+          };
         }
 
         let periodLabel = 'Semua Waktu';
@@ -5752,6 +6219,7 @@
 
         const reportTypeOptions = [
           { id: 'current-stock', name: 'Stok Saat Ini & Saldo Gudang' },
+          { id: 'slow-moving', name: 'Analisis Slow Moving & Dead Stock' },
           { id: 'stock-card', name: 'Kartu Stok & Histori Mutasi' },
           { id: 'incoming', name: 'Laporan Barang Masuk (Restock)' },
           { id: 'outgoing', name: 'Laporan Barang Keluar (Distribusi)' },
@@ -5778,7 +6246,7 @@
                 ${whOptions.map(w => `<option value="${w}" ${whFilter === w ? 'selected' : ''}>${w}</option>`).join('')}
               </select>
             </div>
-            ${type === 'current-stock' ? `
+            ${(type === 'current-stock' || type === 'slow-moving') ? `
               <div class="field">
                 <label for="reportCategorySelect">Kategori Barang</label>
                 <select id="reportCategorySelect" class="control">
@@ -5786,10 +6254,21 @@
                 </select>
               </div>
             ` : ''}
+            ${type === 'slow-moving' ? `
+              <div class="field">
+                <label for="reportSlowThresholdSelect">Batas Hari Mengendap</label>
+                <select id="reportSlowThresholdSelect" class="control">
+                  <option value="30" ${(state.reportSlowThreshold === 30 || state.reportSlowThreshold === '30') ? 'selected' : ''}>30 Hari Tanpa Pengeluaran</option>
+                  <option value="60" ${(state.reportSlowThreshold === 60 || state.reportSlowThreshold === '60') ? 'selected' : ''}>60 Hari Tanpa Pengeluaran</option>
+                  <option value="90" ${(state.reportSlowThreshold === 90 || state.reportSlowThreshold === '90') ? 'selected' : ''}>90 Hari Tanpa Pengeluaran (Dead Stock)</option>
+                  <option value="180" ${(state.reportSlowThreshold === 180 || state.reportSlowThreshold === '180') ? 'selected' : ''}>180 Hari Tanpa Pengeluaran</option>
+                </select>
+              </div>
+            ` : ''}
             <div class="field">
               <label for="reportPeriodSelect">Filter Waktu</label>
-              ${type === 'current-stock' ? `
-                <select id="reportPeriodSelect" class="control" disabled title="Laporan Stok Saat Ini menampilkan saldo fisik real-time terkini. Untuk laporan per rentang tanggal, pilih Kartu Stok atau Laporan Transaksi.">
+              ${(type === 'current-stock' || type === 'slow-moving') ? `
+                <select id="reportPeriodSelect" class="control" disabled title="Laporan menampilkan kondisi stok fisik terkini.">
                   <option value="all" selected>Real-Time / Saldo Terkini</option>
                 </select>
               ` : `
@@ -5803,7 +6282,7 @@
                 </select>
               `}
             </div>
-            ${(type !== 'current-stock' && periodFilter === 'custom') ? `
+            ${(type !== 'current-stock' && type !== 'slow-moving' && periodFilter === 'custom') ? `
               <div class="field">
                 <label for="reportDateFrom">Dari Tanggal</label>
                 <input type="date" id="reportDateFrom" class="control" value="${state.reportDateFrom || ''}">
@@ -5817,28 +6296,48 @@
               <label for="reportSearchInput">Kata Kunci Pencarian</label>
               <div class="input-wrap">
                 ${icon('search', 'input-icon')}
-                <input id="reportSearchInput" class="control with-icon" value="${state.reportQuery || ''}" placeholder="Cari nama barang, no ref, dsb…">
+                <input id="reportSearchInput" class="control with-icon" value="${state.reportQuery || ''}" placeholder="Cari nama barang, SKU, dsb…">
               </div>
             </div>
           </div>
 
-          <div class="stats-grid" style="grid-template-columns:repeat(3, minmax(0, 1fr));margin-bottom:16px">
-            <article class="card stat-card">
-              <div class="stat-top"><span class="stat-label">Jenis Laporan Aktif</span><span class="stat-icon">${icon('report')}</span></div>
-              <div class="stat-value" style="font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${reportData.title}</div>
-              <div class="stat-meta">Filter: ${whFilter} · Periode: ${reportData.periodLabel}</div>
-            </article>
-            <article class="card stat-card" style="--accent:var(--brand-600);--accent-soft:var(--brand-50)">
-              <div class="stat-top"><span class="stat-label">Jumlah Data Ditemukan</span><span class="stat-icon">${icon('check')}</span></div>
-              <div class="stat-value">${reportData.count}</div>
-              <div class="stat-meta">Baris data sesuai filter</div>
-            </article>
-            <article class="card stat-card" style="--accent:var(--info);--accent-soft:var(--info-soft)">
-              <div class="stat-top"><span class="stat-label">Total Akumulasi Kuantitas</span><span class="stat-icon">${icon('box')}</span></div>
-              <div class="stat-value">${rupiah.format(reportData.totalUnits)}</div>
-              <div class="stat-meta">Total unit terkait</div>
-            </article>
-          </div>
+          ${type === 'slow-moving' ? `
+            <div class="stats-grid" style="grid-template-columns:repeat(3, minmax(0, 1fr));margin-bottom:16px">
+              <article class="card stat-card" style="--accent:var(--danger);--accent-soft:var(--danger-soft)">
+                <div class="stat-top"><span class="stat-label">Total Aset Mengendap</span><span class="stat-icon">${icon('alert')}</span></div>
+                <div class="stat-value" style="font-size:20px;color:var(--danger)">Rp ${rupiah.format(reportData.totalAssetStuck || 0)}</div>
+                <div class="stat-meta">Estimasi nilai modal tertahan</div>
+              </article>
+              <article class="card stat-card" style="--accent:#b91c1c;--accent-soft:#fee2e2">
+                <div class="stat-top"><span class="stat-label">🔴 Dead Stock (Stok Mati)</span><span class="stat-icon">${icon('box')}</span></div>
+                <div class="stat-value" style="color:#b91c1c">${reportData.deadCount || 0} SKU</div>
+                <div class="stat-meta">&gt; 90 hari / tidak pernah keluar</div>
+              </article>
+              <article class="card stat-card" style="--accent:#d97706;--accent-soft:#fef3c7">
+                <div class="stat-top"><span class="stat-label">🟡 Slow Moving (Lambat)</span><span class="stat-icon">${icon('history')}</span></div>
+                <div class="stat-value" style="color:#d97706">${reportData.slowCount || 0} SKU</div>
+                <div class="stat-meta">&gt; ${state.reportSlowThreshold || 60} hari tanpa transaksi</div>
+              </article>
+            </div>
+          ` : `
+            <div class="stats-grid" style="grid-template-columns:repeat(3, minmax(0, 1fr));margin-bottom:16px">
+              <article class="card stat-card">
+                <div class="stat-top"><span class="stat-label">Jenis Laporan Aktif</span><span class="stat-icon">${icon('report')}</span></div>
+                <div class="stat-value" style="font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${reportData.title}</div>
+                <div class="stat-meta">Filter: ${whFilter} · Periode: ${reportData.periodLabel}</div>
+              </article>
+              <article class="card stat-card" style="--accent:var(--brand-600);--accent-soft:var(--brand-50)">
+                <div class="stat-top"><span class="stat-label">Jumlah Data Ditemukan</span><span class="stat-icon">${icon('check')}</span></div>
+                <div class="stat-value">${reportData.count}</div>
+                <div class="stat-meta">Baris data sesuai filter</div>
+              </article>
+              <article class="card stat-card" style="--accent:var(--info);--accent-soft:var(--info-soft)">
+                <div class="stat-top"><span class="stat-label">Total Akumulasi Kuantitas</span><span class="stat-icon">${icon('box')}</span></div>
+                <div class="stat-value">${rupiah.format(reportData.totalUnits)}</div>
+                <div class="stat-meta">Total unit terkait</div>
+              </article>
+            </div>
+          `}
 
           <article class="card" id="printableReportSection">
             <!-- Kop Dokumen Resmi Khusus Cetak / PDF -->
@@ -6268,9 +6767,9 @@
         renderNav();
         updateHeader();
         const pages = {
-          dashboard: dashboardPage, stock: stockPage, incoming: () => transactionPage('incoming'),
-          outgoing: () => transactionPage('outgoing'), transfer: transferPage, opname: opnamePage,
-          reports: reportsPage, products: productsPage, warehouses: warehousesPage, users: usersPage,
+          dashboard: dashboardPage, stock: stockPage, stockcard: stockCardPage, incoming: () => transactionPage('incoming'),
+          outgoing: () => transactionPage('outgoing'), damaged: damagedPage, transfer: transferPage, opname: opnamePage,
+          reports: reportsPage, products: productsPage, categories: categoriesPage, warehouses: warehousesPage, users: usersPage,
           audit: auditPage, settings: settingsPage, history: historyPage
         };
         document.getElementById('appContent').innerHTML = (pages[state.route] || dashboardPage)();
@@ -10726,7 +11225,13 @@
         }
 
         // View Detail & Stock Card
-        if (action === 'view-stock-card') return openStockCardModal(actionEl.dataset.id);
+        if (action === 'view-stock-card') {
+          if (actionEl.dataset.id) {
+            state.stockCardProductId = actionEl.dataset.id;
+          }
+          navigate('stockcard');
+          return;
+        }
         if (action === 'view-tx-receipt') {
           const tx = store.transactions.find(t => t.no === actionEl.dataset.no || t.id === actionEl.dataset.no || t.id === actionEl.dataset.id);
           if (tx) {
@@ -10878,6 +11383,59 @@
             warehouse: state.reportWarehouse || 'Semua Gudang',
             category: state.reportCategory || 'Semua Kategori',
             period: rep.periodLabel || 'Semua Waktu'
+          });
+        }
+
+        if (action === 'print-stock-card') {
+          window.print();
+          return;
+        }
+
+        if (action === 'export-stock-card') {
+          const activeProducts = store.products.filter(p => p.active !== false);
+          const selProdId = state.stockCardProductId || activeProducts[0]?.id;
+          const prod = store.products.find(p => p.id === selProdId) || activeProducts[0];
+          if (!prod) return showToast('Peringatan', 'Barang belum dipilih.', true);
+
+          const wh = state.stockCardWarehouse || 'Semua Gudang';
+          const period = state.stockCardPeriod || 'all';
+          const dFrom = state.stockCardDateFrom;
+          const dTo = state.stockCardDateTo;
+
+          const rawLedger = (store.stockLedger || []).filter(l => l.productId === prod.id);
+          const sortedLedger = [...rawLedger].sort((a, b) => parseDateTimeToSort(a.date) - parseDateTimeToSort(b.date));
+          const whLedger = wh === 'Semua Gudang' ? sortedLedger : sortedLedger.filter(l => l.warehouse === wh);
+
+          let runBal = 0;
+          const exportRows = [];
+          whLedger.forEach(l => {
+            const isPlus = ['IN', 'TRANSFER_IN', 'ADJUSTMENT_PLUS', 'OPENING'].includes(l.type);
+            const isMinus = ['OUT', 'TRANSFER_OUT', 'DAMAGE', 'ADJUSTMENT_MINUS'].includes(l.type);
+            const qty = Number(l.qty || 0);
+            if (isPlus) runBal += qty;
+            else if (isMinus) runBal -= qty;
+
+            if (isTxInPeriod(l.date, period, dFrom, dTo)) {
+              exportRows.push([
+                l.date,
+                l.warehouse,
+                l.type,
+                l.refNo || '-',
+                isPlus ? qty : 0,
+                isMinus ? qty : 0,
+                runBal,
+                l.user || 'Admin',
+                l.notes || '-'
+              ]);
+            }
+          });
+
+          const filename = `Kartu_Stok_${prod.sku}_${new Date().toISOString().split('T')[0]}`;
+          const headers = ['Waktu', 'Lokasi Gudang', 'Jenis Mutasi', 'No Referensi', 'Qty Masuk (+)', 'Qty Keluar (-)', 'Saldo Berjalan', 'Petugas', 'Catatan'];
+          return exportToExcel(filename, `KARTU STOK: ${prod.name} (${prod.sku})`, headers, exportRows, {
+            product: `${prod.name} (${prod.sku})`,
+            warehouse: wh,
+            period: period
           });
         }
 
@@ -11382,11 +11940,17 @@
         if (id === 'transferStatusSelect') { state.transferFilterStatus = event.target.value; render(); }
         if (id === 'opnameWhSelect') { state.opnameFilterWh = event.target.value; render(); }
         if (id === 'reportTypeSelect') { state.reportType = event.target.value; render(); }
+        if (id === 'reportSlowThresholdSelect') { state.reportSlowThreshold = Number(event.target.value); render(); }
         if (id === 'reportWhSelect') { state.reportWarehouse = event.target.value; render(); }
         if (id === 'reportCategorySelect') { state.reportCategory = event.target.value; render(); }
         if (id === 'reportPeriodSelect') { state.reportPeriod = event.target.value; render(); }
         if (id === 'reportDateFrom') { state.reportDateFrom = event.target.value; render(); }
         if (id === 'reportDateTo') { state.reportDateTo = event.target.value; render(); }
+        if (id === 'stockCardProductSelect') { state.stockCardProductId = event.target.value; render(); }
+        if (id === 'stockCardWhSelect') { state.stockCardWarehouse = event.target.value; render(); }
+        if (id === 'stockCardPeriodSelect') { state.stockCardPeriod = event.target.value; render(); }
+        if (id === 'stockCardDateFrom') { state.stockCardDateFrom = event.target.value; render(); }
+        if (id === 'stockCardDateTo') { state.stockCardDateTo = event.target.value; render(); }
 
         // Transfer Modal warehouse changes
         if (id === 'trfFrom') {
@@ -11983,7 +12547,7 @@
         renderNav();
         updateHeader();
         const pages = {
-          dashboard: dashboardPage, stock: stockPage, incoming: () => transactionPage('incoming'),
+          dashboard: dashboardPage, stock: stockPage, stockcard: stockCardPage, incoming: () => transactionPage('incoming'),
           outgoing: () => transactionPage('outgoing'), damaged: damagedPage, transfer: transferPage, opname: opnamePage,
           reports: reportsPage, products: productsPage, categories: categoriesPage, warehouses: warehousesPage,
           users: usersPage, audit: auditPage, settings: settingsPage, history: historyPage
