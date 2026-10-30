@@ -146,10 +146,258 @@
       background: var(--brand-100);
     }
 
-    [data-theme="dark"] .modal {
+    /* Dark Mode Components & High Contrast Overrides */
+    [data-theme="dark"] .modal,
+    body.dark-mode .modal {
+      background: var(--surface) !important;
+      color: var(--ink-950) !important;
+      border: 1px solid var(--ink-200) !important;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .75) !important;
+    }
+
+    [data-theme="dark"] .modal-header,
+    body.dark-mode .modal-header {
+      background: var(--surface) !important;
+      border-bottom: 1px solid var(--ink-200) !important;
+      color: var(--ink-950) !important;
+    }
+
+    [data-theme="dark"] .modal-header h2,
+    body.dark-mode .modal-header h2 {
+      color: var(--ink-950);
+    }
+
+    [data-theme="dark"] .modal-header p,
+    body.dark-mode .modal-header p {
+      color: var(--ink-500) !important;
+    }
+
+    [data-theme="dark"] .modal-body,
+    body.dark-mode .modal-body {
+      background: var(--surface) !important;
+      color: var(--ink-950) !important;
+    }
+
+    [data-theme="dark"] .modal-footer,
+    body.dark-mode .modal-footer {
+      background: var(--surface) !important;
+      border-top: 1px solid var(--ink-200) !important;
+      color: var(--ink-950) !important;
+    }
+
+    /* Notice Boxes in Dark Mode */
+    [data-theme="dark"] .notice,
+    body.dark-mode .notice {
+      background: rgba(255, 255, 255, 0.05) !important;
+      color: #e2e8f0 !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    }
+
+    [data-theme="dark"] .notice.warning,
+    body.dark-mode .notice.warning {
+      color: #fde68a !important;
+      background: rgba(245, 158, 11, 0.16) !important;
+      border: 1px solid rgba(253, 230, 138, 0.35) !important;
+    }
+
+    [data-theme="dark"] .notice.warning svg,
+    [data-theme="dark"] .notice.warning .icon,
+    body.dark-mode .notice.warning svg,
+    body.dark-mode .notice.warning .icon {
+      color: #fbbf24 !important;
+      stroke: #fbbf24 !important;
+    }
+
+    [data-theme="dark"] .notice.warning div,
+    [data-theme="dark"] .notice.warning span,
+    [data-theme="dark"] .notice.warning strong,
+    body.dark-mode .notice.warning div,
+    body.dark-mode .notice.warning span,
+    body.dark-mode .notice.warning strong {
+      color: #fde68a !important;
+    }
+
+    [data-theme="dark"] .notice.info,
+    body.dark-mode .notice.info {
+      color: #93c5fd !important;
+      background: rgba(59, 130, 246, 0.16) !important;
+      border: 1px solid rgba(147, 197, 253, 0.35) !important;
+    }
+
+    [data-theme="dark"] .notice.info svg,
+    [data-theme="dark"] .notice.info .icon,
+    body.dark-mode .notice.info svg,
+    body.dark-mode .notice.info .icon {
+      color: #60a5fa !important;
+      stroke: #60a5fa !important;
+    }
+
+    [data-theme="dark"] .notice.info div,
+    [data-theme="dark"] .notice.info span,
+    [data-theme="dark"] .notice.info strong,
+    body.dark-mode .notice.info div,
+    body.dark-mode .notice.info span,
+    body.dark-mode .notice.info strong {
+      color: #93c5fd !important;
+    }
+
+    [data-theme="dark"] .notice.danger,
+    body.dark-mode .notice.danger {
+      color: #fca5a5 !important;
+      background: rgba(239, 68, 68, 0.16) !important;
+      border: 1px solid rgba(252, 165, 165, 0.35) !important;
+    }
+
+    [data-theme="dark"] .notice.danger svg,
+    [data-theme="dark"] .notice.danger .icon,
+    body.dark-mode .notice.danger svg,
+    body.dark-mode .notice.danger .icon {
+      color: #f87171 !important;
+      stroke: #f87171 !important;
+    }
+
+    [data-theme="dark"] .notice.danger div,
+    [data-theme="dark"] .notice.danger span,
+    [data-theme="dark"] .notice.danger strong,
+    body.dark-mode .notice.danger div,
+    body.dark-mode .notice.danger span,
+    body.dark-mode .notice.danger strong {
+      color: #fca5a5 !important;
+    }
+
+    /* Badges in Dark Mode */
+    [data-theme="dark"] .badge.success,
+    body.dark-mode .badge.success {
+      color: #34d399 !important;
+      background: rgba(16, 185, 129, 0.18) !important;
+      border: 1px solid rgba(52, 211, 153, 0.28) !important;
+    }
+
+    [data-theme="dark"] .badge.warning,
+    body.dark-mode .badge.warning {
+      color: #fbbf24 !important;
+      background: rgba(245, 158, 11, 0.18) !important;
+      border: 1px solid rgba(251, 191, 36, 0.28) !important;
+    }
+
+    [data-theme="dark"] .badge.danger,
+    body.dark-mode .badge.danger {
+      color: #f87171 !important;
+      background: rgba(239, 68, 68, 0.18) !important;
+      border: 1px solid rgba(248, 113, 113, 0.28) !important;
+    }
+
+    [data-theme="dark"] .badge.info,
+    body.dark-mode .badge.info {
+      color: #60a5fa !important;
+      background: rgba(59, 130, 246, 0.18) !important;
+      border: 1px solid rgba(96, 165, 250, 0.28) !important;
+    }
+
+    [data-theme="dark"] .badge.neutral,
+    body.dark-mode .badge.neutral {
+      color: #cbd5e1 !important;
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    }
+
+    /* Action Buttons in Dark Mode */
+    [data-theme="dark"] .btn-danger,
+    body.dark-mode .btn-danger {
+      color: #fca5a5 !important;
+      background: rgba(226, 92, 106, 0.15) !important;
+      border: 1px solid rgba(226, 92, 106, 0.35) !important;
+    }
+
+    [data-theme="dark"] .btn-danger:hover,
+    body.dark-mode .btn-danger:hover {
+      color: #ffffff !important;
+      background: rgba(226, 92, 106, 0.28) !important;
+      border-color: rgba(226, 92, 106, 0.5) !important;
+    }
+
+    [data-theme="dark"] .btn-ghost,
+    body.dark-mode .btn-ghost {
+      color: var(--ink-800) !important;
+    }
+
+    [data-theme="dark"] .btn-ghost:hover,
+    body.dark-mode .btn-ghost:hover {
+      background: var(--ink-100) !important;
+      color: #fff !important;
+    }
+
+    /* Toast in Dark Mode */
+    [data-theme="dark"] .toast,
+    body.dark-mode .toast {
+      background: var(--surface) !important;
+      border-color: var(--ink-200) !important;
+      color: var(--ink-950) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+    }
+
+    [data-theme="dark"] .toast strong,
+    body.dark-mode .toast strong {
+      color: var(--ink-950) !important;
+    }
+
+    [data-theme="dark"] .toast p,
+    body.dark-mode .toast p {
+      color: var(--ink-500) !important;
+    }
+
+    [data-theme="dark"] .toast.toast-error,
+    body.dark-mode .toast.toast-error {
+      background: #251417 !important;
+      border-color: rgba(226, 92, 106, 0.4) !important;
+    }
+
+    /* Form Controls & Dropdowns in Dark Mode */
+    [data-theme="dark"] select option,
+    body.dark-mode select option {
       background: var(--surface);
       color: var(--ink-950);
-      border-color: var(--ink-200);
+    }
+
+    /* Modal Sub-cards & Nested Containers in Dark Mode */
+    [data-theme="dark"] .modal div[style*="background:#fafbfb"],
+    [data-theme="dark"] .modal div[style*="background: #fafbfb"],
+    [data-theme="dark"] .modal div[style*="background:#fafafa"],
+    [data-theme="dark"] .modal div[style*="background: #fafafa"],
+    body.dark-mode .modal div[style*="background:#fafbfb"],
+    body.dark-mode .modal div[style*="background: #fafbfb"],
+    body.dark-mode .modal div[style*="background:#fafafa"],
+    body.dark-mode .modal div[style*="background: #fafafa"] {
+      background: var(--ink-100) !important;
+      border-color: var(--ink-200) !important;
+      color: var(--ink-950) !important;
+    }
+
+    [data-theme="dark"] .modal div[style*="background:#fffbeb"],
+    body.dark-mode .modal div[style*="background:#fffbeb"] {
+      background: rgba(245, 158, 11, 0.12) !important;
+      border-color: rgba(253, 230, 138, 0.28) !important;
+    }
+
+    [data-theme="dark"] .modal div[style*="background:#eff6ff"],
+    body.dark-mode .modal div[style*="background:#eff6ff"] {
+      background: rgba(59, 130, 246, 0.12) !important;
+      border-color: rgba(147, 197, 253, 0.28) !important;
+    }
+
+    [data-theme="dark"] .modal div[style*="background:#fff"],
+    [data-theme="dark"] .modal div[style*="background: #fff"],
+    body.dark-mode .modal div[style*="background:#fff"],
+    body.dark-mode .modal div[style*="background: #fff"] {
+      background: var(--surface) !important;
+      border-color: var(--ink-200) !important;
+      color: var(--ink-950) !important;
+    }
+
+    [data-theme="dark"] .modal div[style*="background:var(--bg-subtle, #f8fafc)"],
+    body.dark-mode .modal div[style*="background:var(--bg-subtle, #f8fafc)"] {
+      background: var(--ink-100) !important;
+      border-color: var(--ink-200) !important;
     }
 
     * {
@@ -14478,20 +14726,6 @@
                   </div>
                 </div>
 
-                <!-- Akses Cepat / Demo Shortcuts -->
-                <div class="login-quick-chips">
-                  <div class="login-quick-label">
-                    ${icon('key')} Akses Cepat:
-                  </div>
-                  <div class="login-chips-group">
-                    <button type="button" class="quick-chip-btn" data-fill-login="admin" title="Isi kredensial Admin">
-                      <strong>Admin</strong> (admin)
-                    </button>
-                    <button type="button" class="quick-chip-btn" data-fill-login="staf" title="Isi kredensial Staf">
-                      <strong>Staf Gudang</strong> (staf)
-                    </button>
-                  </div>
-                </div>
 
                 <button type="submit" class="btn btn-primary btn-login">
                   ${icon('lock')} <span>Masuk ke Dashboard</span>
