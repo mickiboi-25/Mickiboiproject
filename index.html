@@ -4181,6 +4181,389 @@
         `, true);
       }
 
+      // ==========================================
+      // MODUL KAMERA MANDIRI (LUAR SANDBOX APPS SCRIPT)
+      // ==========================================
+      const CAMERA_STORAGE_KEY = 'STOKKITA_CAMERA_PHOTO_RESULT_V1';
+      let cameraPopupWindow = null;
+      let cameraPollingInterval = null;
+      const processedPhotoIds = new Set();
+
+      function createCameraPopupHTML(targetProp, containerId) {
+        const safeTargetProp = JSON.stringify(targetProp || 'transactionPhoto');
+        const safeContainerId = JSON.stringify(containerId || 'txPhotoContainer');
+        const storageKey = JSON.stringify(CAMERA_STORAGE_KEY);
+
+        return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kamera StokKita</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 16px;
+      background: #0c1613;
+      color: #eef3f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .cam-box {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cam-header { text-align: center; }
+    .cam-header h2 { margin: 0 0 4px; font-size: 18px; color: #33b895; }
+    .cam-header p { margin: 0; font-size: 12px; color: #9cb1aa; }
+    .preview-frame {
+      position: relative;
+      width: 100%;
+      height: 60vh;
+      min-height: 280px;
+      max-height: 460px;
+      background: #000;
+      border: 2px solid #1a4d3f;
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video, #photoResult {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #photoResult { display: none; object-fit: contain; background: #000; }
+    canvas { display: none; }
+    .status-badge {
+      font-size: 12px;
+      text-align: center;
+      min-height: 20px;
+      color: #9cb1aa;
+    }
+    .status-badge.success { color: #4ade80; font-weight: 600; }
+    .status-badge.error { color: #f87171; font-weight: 600; }
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+    }
+    button {
+      min-height: 44px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.1s, opacity 0.15s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-capture {
+      grid-column: 1 / -1;
+      background: #21876d;
+      color: #ffffff;
+      font-size: 15px;
+    }
+    .btn-capture:hover { background: #176b57; }
+    .btn-use {
+      grid-column: 1 / -1;
+      display: none;
+      background: #059669;
+      color: #ffffff;
+      font-size: 15px;
+    }
+    .btn-retake { display: none; background: #d97706; color: #ffffff; }
+    .btn-switch { background: #1a4d3f; color: #baf0dc; }
+    .btn-close { background: #374151; color: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <div class="cam-box">
+    <div class="cam-header">
+      <h2>📷 Kamera Dokumen StokKita</h2>
+      <p>Arahkan kamera ke barang atau bukti nota, lalu tekan tombol ambil.</p>
+    </div>
+
+    <div class="preview-frame">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <img id="photoResult" alt="Hasil Foto">
+      <canvas id="photoCanvas"></canvas>
+    </div>
+
+    <div id="statusBadge" class="status-badge">Menyiapkan kamera...</div>
+
+    <div class="btn-grid">
+      <button type="button" id="captureBtn" class="btn-capture" onclick="takeSnapshot()">📸 Ambil Foto</button>
+      <button type="button" id="useBtn" class="btn-use" onclick="confirmAndSendPhoto()">✓ Gunakan Foto Ini</button>
+      <button type="button" id="retakeBtn" class="btn-retake" onclick="resetToLiveCamera()">↩ Foto Ulang</button>
+      <button type="button" id="switchBtn" class="btn-switch" onclick="switchCameraFacing()">🔄 Ganti Kamera</button>
+      <button type="button" id="closeBtn" class="btn-close" onclick="closeCameraWindow()">✕ Batal / Tutup</button>
+    </div>
+  </div>
+
+  <script>
+    var TARGET_PROP = ${safeTargetProp};
+    var CONTAINER_ID = ${safeContainerId};
+    var STORAGE_KEY = ${storageKey};
+
+    var cameraStream = null;
+    var currentFacing = 'environment';
+    var capturedDataUrl = '';
+    var videoEl = document.getElementById('cameraVideo');
+    var canvasEl = document.getElementById('photoCanvas');
+    var resultEl = document.getElementById('photoResult');
+    var statusEl = document.getElementById('statusBadge');
+    var captureBtn = document.getElementById('captureBtn');
+    var useBtn = document.getElementById('useBtn');
+    var retakeBtn = document.getElementById('retakeBtn');
+
+    function setStatus(msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status-badge' + (type ? ' ' + type : '');
+    }
+
+    function stopTracks() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(function(t) { t.stop(); });
+        cameraStream = null;
+      }
+    }
+
+    async function initCamera() {
+      stopTracks();
+      resetDisplayUI();
+      setStatus('Meminta akses kamera...', '');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('Browser Anda tidak mendukung akses media kamera.', 'error');
+        return;
+      }
+
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: currentFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+        videoEl.srcObject = cameraStream;
+        await videoEl.play();
+        setStatus(currentFacing === 'environment' ? 'Kamera belakang aktif.' : 'Kamera depan aktif.', 'success');
+      } catch (err) {
+        console.error(err);
+        var msg = 'Kamera tidak dapat diakses.';
+        if (err.name === 'NotAllowedError') msg = 'Izin kamera ditolak. Berikan izin kamera pada browser Anda.';
+        else if (err.name === 'NotFoundError') msg = 'Perangkat kamera tidak ditemukan.';
+        setStatus(msg, 'error');
+      }
+    }
+
+    function switchCameraFacing() {
+      currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+      initCamera();
+    }
+
+    function resetDisplayUI() {
+      videoEl.style.display = 'block';
+      resultEl.style.display = 'none';
+      resultEl.src = '';
+      captureBtn.style.display = 'block';
+      useBtn.style.display = 'none';
+      retakeBtn.style.display = 'none';
+      capturedDataUrl = '';
+    }
+
+    function takeSnapshot() {
+      if (!videoEl.videoWidth || !videoEl.videoHeight) {
+        setStatus('Kamera belum siap, tunggu beberapa detik.', 'error');
+        return;
+      }
+
+      var maxW = 1000;
+      var scale = Math.min(1, maxW / videoEl.videoWidth);
+      canvasEl.width = Math.round(videoEl.videoWidth * scale);
+      canvasEl.height = Math.round(videoEl.videoHeight * scale);
+
+      var ctx = canvasEl.getContext('2d');
+      ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+
+      capturedDataUrl = canvasEl.toDataURL('image/jpeg', 0.80);
+      resultEl.src = capturedDataUrl;
+
+      videoEl.style.display = 'none';
+      resultEl.style.display = 'block';
+      captureBtn.style.display = 'none';
+      useBtn.style.display = 'block';
+      retakeBtn.style.display = 'block';
+
+      setStatus('Foto berhasil diambil. Periksa pratinjau sebelum menyimpan.', 'success');
+    }
+
+    function resetToLiveCamera() {
+      resetDisplayUI();
+      setStatus('Silakan bidik kembali lalu tekan Ambil Foto.', '');
+    }
+
+    function confirmAndSendPhoto() {
+      if (!capturedDataUrl) {
+        setStatus('Belum ada foto yang diambil.', 'error');
+        return;
+      }
+
+      var payload = {
+        type: 'STOKKITA_CAMERA_PHOTO_RESULT',
+        photoId: 'photo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        imageBase64: capturedDataUrl,
+        targetProp: TARGET_PROP,
+        containerId: CONTAINER_ID,
+        timestamp: Date.now()
+      };
+
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, '*');
+        }
+      } catch (e) { }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      } catch (e) { }
+
+      setStatus('Foto berhasil dikirim ke aplikasi StokKita! Menutup jendela...', 'success');
+      setTimeout(function() {
+        stopTracks();
+        window.close();
+      }, 400);
+    }
+
+    function closeCameraWindow() {
+      stopTracks();
+      window.close();
+    }
+
+    window.addEventListener('beforeunload', stopTracks);
+    initCamera();
+  <\/script>
+</body>
+</html>`;
+      }
+
+      function openCameraPopup(targetProp = 'transactionPhoto', containerId = 'txPhotoContainer') {
+        const width = Math.min(480, screen.availWidth - 24);
+        const height = Math.min(760, screen.availHeight - 40);
+        const left = Math.max(0, Math.round((screen.availWidth - width) / 2));
+        const top = Math.max(0, Math.round((screen.availHeight - height) / 2));
+
+        try {
+          localStorage.removeItem(CAMERA_STORAGE_KEY);
+        } catch (e) { }
+
+        cameraPopupWindow = window.open(
+          '',
+          'stokkita_camera_popup',
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+        if (!cameraPopupWindow) {
+          showToast('Popup Diblokir', 'Browser memblokir jendela kamera. Silakan izinkan popup untuk situs ini.', true);
+          return;
+        }
+
+        const html = createCameraPopupHTML(targetProp, containerId);
+        try {
+          cameraPopupWindow.document.open();
+          cameraPopupWindow.document.write(html);
+          cameraPopupWindow.document.close();
+          cameraPopupWindow.focus();
+        } catch (err) {
+          try {
+            const blob = new Blob([html], { type: 'text/html' });
+            cameraPopupWindow.location.href = URL.createObjectURL(blob);
+          } catch (e) {
+            console.error('Gagal menulis ke popup kamera:', e);
+          }
+        }
+
+        startCameraPollingFallback(targetProp, containerId);
+        showToast('Kamera Terbuka', 'Jendela kamera mandiri telah dibuka. Ambil foto lalu klik "Gunakan Foto Ini".');
+      }
+
+      function handleReceivedCameraPhoto(data) {
+        if (!data || data.type !== 'STOKKITA_CAMERA_PHOTO_RESULT' || !data.photoId) return;
+        if (processedPhotoIds.has(data.photoId)) return;
+        processedPhotoIds.add(data.photoId);
+
+        setTimeout(() => processedPhotoIds.delete(data.photoId), 60000);
+
+        const targetProp = data.targetProp || 'transactionPhoto';
+        const containerId = data.containerId || 'txPhotoContainer';
+        const base64 = data.imageBase64;
+
+        if (typeof base64 === 'string' && base64.startsWith('data:image/')) {
+          state[targetProp] = base64;
+          updatePhotoAttachmentContainer(containerId, base64);
+          showToast('Foto Berhasil Dilampirkan', 'Foto bukti berhasil diterima dan siap disimpan bersama data.');
+        }
+
+        stopCameraPollingFallback();
+      }
+
+      function startCameraPollingFallback(expectedProp, expectedContainer) {
+        stopCameraPollingFallback();
+        let counter = 0;
+        cameraPollingInterval = setInterval(() => {
+          counter++;
+          if (counter > 150 || (cameraPopupWindow && cameraPopupWindow.closed)) {
+            stopCameraPollingFallback();
+            return;
+          }
+
+          try {
+            const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
+            if (raw) {
+              localStorage.removeItem(CAMERA_STORAGE_KEY);
+              const data = JSON.parse(raw);
+              if (data && data.imageBase64) {
+                handleReceivedCameraPhoto(data);
+              }
+            }
+          } catch (e) { }
+        }, 400);
+      }
+
+      function stopCameraPollingFallback() {
+        if (cameraPollingInterval) {
+          clearInterval(cameraPollingInterval);
+          cameraPollingInterval = null;
+        }
+      }
+
+      window.addEventListener('message', function (event) {
+        if (event.data && event.data.type === 'STOKKITA_CAMERA_PHOTO_RESULT') {
+          handleReceivedCameraPhoto(event.data);
+        }
+      });
+
       function renderPhotoAttachmentField(opts) {
         const containerId = opts.containerId || (opts.cameraInputId ? `${opts.cameraInputId}Container` : 'photoContainer');
         const mergedOpts = { ...opts, containerId };
@@ -4211,14 +4594,13 @@
                 <svg class="icon" style="width:16px;height:16px;color:var(--brand-600)"><use href="#i-camera" /></svg>
                 <strong>${label}</strong>
               </span>
-              <span style="font-size:11px;color:var(--ink-400);font-weight:normal;">Opsional · Tersimpan ke Google Sheet / Drive</span>
+              <span style="font-size:11px;color:var(--ink-400);font-weight:normal;">Bebas Sandbox · Tersimpan ke Drive</span>
             </label>
-            <input type="file" id="${cameraInputId}" accept="image/*" capture="environment" style="display:none">
             <input type="file" id="${uploadInputId}" accept="image/*" style="display:none">
             
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:6px;">
-              <button type="button" class="btn btn-secondary btn-sm" data-action="${triggerCameraAction}" style="display:inline-flex;align-items:center;gap:6px;">
-                <svg class="icon"><use href="#i-camera" /></svg> Ambil Foto (Kamera)
+              <button type="button" class="btn btn-primary btn-sm" data-action="${triggerCameraAction}" style="display:inline-flex;align-items:center;gap:6px;">
+                <svg class="icon"><use href="#i-camera" /></svg> Buka Kamera (Tab Baru)
               </button>
               <button type="button" class="btn btn-secondary btn-sm" data-action="${triggerUploadAction}" style="display:inline-flex;align-items:center;gap:6px;">
                 <svg class="icon"><use href="#i-image" /></svg> Pilih dari Galeri
@@ -4244,7 +4626,7 @@
                 </button>
               </div>
             ` : `
-              <div style="margin-top:6px;font-size:11px;color:var(--ink-400);">Belum ada foto yang dilampirkan. Anda dapat mengambil foto langsung lewat kamera HP atau mengunggah gambar dari galeri.</div>
+              <div style="margin-top:6px;font-size:11px;color:var(--ink-400);">Belum ada foto yang dilampirkan. Klik "Buka Kamera (Tab Baru)" untuk memotret langsung tanpa kendala sandbox, atau pilih dari galeri.</div>
             `}
           </div>
         `;
@@ -10519,28 +10901,28 @@
         if (action === 'delete-damaged') return executeDeleteDamaged(actionEl.dataset.id);
         if (action === 'confirm-delete-damaged') return confirmExecuteDeleteDamaged(actionEl.dataset.id);
 
-        // Photo Attachment & Camera Triggers
-        if (action === 'trigger-tx-camera') { document.getElementById('txCameraInput')?.click(); return; }
+        // Photo Attachment & Camera Triggers (Popup Luar Sandbox)
+        if (action === 'trigger-tx-camera') { openCameraPopup('transactionPhoto', 'txPhotoContainer'); return; }
         if (action === 'trigger-tx-upload') { document.getElementById('txUploadInput')?.click(); return; }
         if (action === 'remove-tx-photo') { state.transactionPhoto = ''; updatePhotoAttachmentContainer('txPhotoContainer', ''); return; }
 
-        if (action === 'trigger-edit-tx-camera') { document.getElementById('editTxCameraInput')?.click(); return; }
+        if (action === 'trigger-edit-tx-camera') { openCameraPopup('editTxPhoto', 'editTxPhotoContainer'); return; }
         if (action === 'trigger-edit-tx-upload') { document.getElementById('editTxUploadInput')?.click(); return; }
         if (action === 'remove-edit-tx-photo') { state.editTxPhoto = ''; updatePhotoAttachmentContainer('editTxPhotoContainer', ''); return; }
 
-        if (action === 'trigger-trf-camera') { document.getElementById('trfCameraInput')?.click(); return; }
+        if (action === 'trigger-trf-camera') { openCameraPopup('transferPhoto', 'trfPhotoContainer'); return; }
         if (action === 'trigger-trf-upload') { document.getElementById('trfUploadInput')?.click(); return; }
         if (action === 'remove-trf-photo') { state.transferPhoto = ''; updatePhotoAttachmentContainer('trfPhotoContainer', ''); return; }
 
-        if (action === 'trigger-edit-trf-camera') { document.getElementById('editTrfCameraInput')?.click(); return; }
+        if (action === 'trigger-edit-trf-camera') { openCameraPopup('editTransferPhoto', 'editTrfPhotoContainer'); return; }
         if (action === 'trigger-edit-trf-upload') { document.getElementById('editTrfUploadInput')?.click(); return; }
         if (action === 'remove-edit-trf-photo') { state.editTransferPhoto = ''; updatePhotoAttachmentContainer('editTrfPhotoContainer', ''); return; }
 
-        if (action === 'trigger-dmg-camera') { document.getElementById('dmgCameraInput')?.click(); return; }
+        if (action === 'trigger-dmg-camera') { openCameraPopup('damagedPhoto', 'dmgPhotoContainer'); return; }
         if (action === 'trigger-dmg-upload') { document.getElementById('dmgUploadInput')?.click(); return; }
         if (action === 'remove-dmg-photo') { state.damagedPhoto = ''; updatePhotoAttachmentContainer('dmgPhotoContainer', ''); return; }
 
-        if (action === 'trigger-prod-camera') { document.getElementById('prodCameraInput')?.click(); return; }
+        if (action === 'trigger-prod-camera') { openCameraPopup('productPhoto', 'prodPhotoContainer'); return; }
         if (action === 'trigger-prod-upload') { document.getElementById('prodUploadInput')?.click(); return; }
         if (action === 'remove-prod-photo') { state.productPhoto = ''; updatePhotoAttachmentContainer('prodPhotoContainer', ''); return; }
 
