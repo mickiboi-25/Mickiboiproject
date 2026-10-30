@@ -675,12 +675,13 @@ function readProductsSheet(ss) {
   const lowerHeaders = headers.map(h => h.toLowerCase());
 
   const knownBaseCols = [
-    'id', 'sku', 'name', 'category', 'unit', 'min', 'minstock', 'min_stock',
+    'id', 'sku', 'barcode', 'name', 'category', 'unit', 'min', 'minstock', 'min_stock',
     'active', 'foto', 'photo', 'image', 'gambar', 'stocks_json', 'total', 'total_stock', 'totalstok', 'total stok'
   ];
 
   const idIdx = lowerHeaders.indexOf('id');
   const skuIdx = lowerHeaders.indexOf('sku');
+  const barcodeIdx = lowerHeaders.findIndex(h => ['barcode', 'kode_barcode', 'bar_code'].includes(h));
   const nameIdx = lowerHeaders.indexOf('name');
   const catIdx = lowerHeaders.indexOf('category');
   const unitIdx = lowerHeaders.indexOf('unit');
@@ -717,6 +718,7 @@ function readProductsSheet(ss) {
     const item = {
       id: idVal || ('P' + String(i).padStart(3, '0')),
       sku: skuVal,
+      barcode: barcodeIdx !== -1 ? String(row[barcodeIdx] || '').trim() : skuVal,
       name: nameVal,
       category: catIdx !== -1 ? String(row[catIdx] || '').trim() : 'Umum',
       unit: unitIdx !== -1 ? String(row[unitIdx] || '').trim() : 'Pcs',
@@ -1359,7 +1361,7 @@ function writeProductsSheet(ss, products, warehouses) {
   sheet.clear();
 
   const warehouseNames = getWarehouseNames(ss, products, warehouses);
-  const baseCols = ['id', 'sku', 'name', 'category', 'unit', 'min', 'active', 'foto'];
+  const baseCols = ['id', 'sku', 'barcode', 'name', 'category', 'unit', 'min', 'active', 'foto'];
   const cols = [...baseCols, ...warehouseNames, 'total_stock'];
   const rows = [cols];
 
@@ -1377,6 +1379,7 @@ function writeProductsSheet(ss, products, warehouses) {
     const row = [
       p.id || ('P' + String(idx + 1).padStart(3, '0')),
       p.sku || '',
+      p.barcode || p.sku || '',
       p.name || '',
       p.category || '',
       p.unit || '',

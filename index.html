@@ -3330,6 +3330,12 @@
           <p id="topSubtitle">Ringkasan aktivitas seluruh gudang</p>
         </div>
         <div class="top-actions">
+          <button class="icon-btn quick-scan-btn" id="topQuickScanBtn" data-action="open-barcode-scanner" data-context="global"
+            title="Scan Cepat Barcode / QR Barang (Cari Stok & Aksi Instan)" aria-label="Scan Barcode Barang">
+            <svg class="icon">
+              <use href="#i-scan" />
+            </svg>
+          </button>
           <button class="icon-btn refresh-cloud-btn" id="topRefreshBtn" data-action="manual-refresh"
             title="Perbarui Data Terbaru dari Cloud (Sinkronisasi HP & Komputer)" aria-label="Refresh Data Cloud">
             <svg class="icon" id="topRefreshIcon">
@@ -5015,7 +5021,10 @@
           (x.id && x.id.toLowerCase() === rawCode.toLowerCase())
         );
 
-        if (data.context === 'transaction') {
+        const ctx = data.context || 'global';
+
+        // 1. Context: Transaksi Masuk / Keluar (Modal)
+        if (ctx === 'transaction') {
           if (p) {
             if (!state.transactionLines) state.transactionLines = [];
             const existing = state.transactionLines.find(l => l.productId === p.id);
@@ -5024,15 +5033,142 @@
             } else {
               state.transactionLines.push({ productId: p.id, qty: 1 });
             }
+            // Preserve current form inputs
+            const pVal = document.getElementById('modalTxParty')?.value;
+            const rVal = document.getElementById('modalTxRef')?.value;
+            const nVal = document.getElementById('modalTxNotes')?.value;
+            if (pVal !== undefined) state.transactionParty = pVal;
+            if (rVal !== undefined) state.transactionRef = rVal;
+            if (nVal !== undefined) state.transactionNotes = nVal;
+
             renderNewTransactionModal();
-            showToast('Barang Ditambahkan', `+1 ${p.name} (${p.sku}) ditambahkan ke transaksi.`);
+            showToast('Barang Ditambahkan', `+1 ${p.name} (${p.sku}) ke daftar transaksi.`);
           } else {
-            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" tidak cocok dengan SKU produk manapun.`, true);
+            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" tidak cocok dengan SKU atau barcode produk manapun.`, true);
           }
           return;
         }
 
-        if (data.context === 'barcodePage') {
+        // 2. Context: Transfer Antar Gudang (Modal)
+        if (ctx === 'transfer') {
+          if (p) {
+            if (!state.transferLines) state.transferLines = [];
+            const existing = state.transferLines.find(l => l.productId === p.id);
+            if (existing) {
+              existing.qty = Number(existing.qty || 1) + 1;
+            } else {
+              state.transferLines.push({ productId: p.id, qty: 1 });
+            }
+            const rVal = document.getElementById('trfRef')?.value;
+            const nVal = document.getElementById('trfNotes')?.value;
+            if (rVal !== undefined) state.transferRefNo = rVal;
+            if (nVal !== undefined) state.transferNotes = nVal;
+
+            renderNewTransferModal();
+            showToast('Barang Ditambahkan', `+1 ${p.name} (${p.sku}) ke daftar transfer.`);
+          } else {
+            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" tidak cocok dengan produk manapun.`, true);
+          }
+          return;
+        }
+
+        // 3. Context: Input Barcode di Form Tambah / Edit Barang
+        if (ctx === 'productFormBarcode') {
+          const barcodeInput = document.getElementById('prodFormBarcode');
+          if (barcodeInput) {
+            barcodeInput.value = rawCode;
+            barcodeInput.focus();
+            showToast('Barcode Terisi', `Kode ${rawCode} berhasil dimasukkan ke form barang.`);
+          } else {
+            showToast('Hasil Scan', `Kode barcode: ${rawCode}`);
+          }
+          return;
+        }
+
+        // 4. Context: Pencarian Cepat di Cek Stok
+        if (ctx === 'stockSearch') {
+          state.stockQuery = p ? p.sku : rawCode;
+          navigate('stock');
+          render();
+          const sInp = document.getElementById('stockSearch');
+          if (sInp) { sInp.focus(); sInp.select(); }
+          showToast('Pencarian Stok', `Menampilkan stok untuk "${rawCode}".`);
+          return;
+        }
+
+        // 5. Context: Pencarian Cepat di Master Barang
+        if (ctx === 'productSearch') {
+          state.productsQuery = p ? p.sku : rawCode;
+          navigate('products');
+          render();
+          const pInp = document.getElementById('prodSearch');
+          if (pInp) { pInp.focus(); pInp.select(); }
+          showToast('Pencarian Barang', `Menampilkan master barang untuk "${rawCode}".`);
+          return;
+        }
+
+        // 6. Context: Buka Kartu Stok Langsung
+        if (ctx === 'stockCard') {
+          if (p) {
+            state.stockCardProductId = p.id;
+            navigate('stockcard');
+            render();
+            showToast('Kartu Stok Terbuka', `Buku mutasi ${p.name} (${p.sku}).`);
+          } else {
+            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" belum terdaftar di database.`, true);
+          }
+          return;
+        }
+
+        // 7. Context: Pilih Barang Bermasalah / Rusak
+        if (ctx === 'damaged') {
+          if (p) {
+            const hiddenInp = document.getElementById('dmgProduct');
+            const searchInp = document.getElementById('dmgProductSearchInput');
+            const badgeEl = document.getElementById('dmgSelectedProductBadge');
+            const wh = document.getElementById('dmgWarehouse')?.value || 'Gudang Utama';
+            const curStock = p.stocks ? (p.stocks[wh] || 0) : 0;
+            if (hiddenInp) hiddenInp.value = p.id;
+            if (searchInp) searchInp.value = `${p.name} (${p.sku})`;
+            if (badgeEl) {
+              badgeEl.innerHTML = `<strong style="color:var(--ink-900)">${escapeHtml(p.name)}</strong> (${escapeHtml(p.sku)}) &bull; Kategori: ${escapeHtml(p.category)} &bull; Stok di ${escapeHtml(wh)}: <strong style="color:var(--brand-700)">${curStock} ${escapeHtml(p.unit)}</strong>`;
+            }
+            showToast('Barang Terpilih', `${p.name} (${p.sku}) siap dilaporkan.`);
+          } else {
+            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" tidak cocok dengan produk manapun.`, true);
+          }
+          return;
+        }
+
+        // 8. Context: Hitung Fisik Stok Opname
+        if (ctx === 'opname') {
+          if (p) {
+            const row = document.getElementById(`opnameRow_${p.id}`);
+            const input = document.querySelector(`.opname-phys-input[data-prod-id="${p.id}"]`);
+            if (row && input) {
+              row.style.display = '';
+              row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              row.style.transition = 'background-color 0.4s';
+              row.style.backgroundColor = 'var(--brand-50, #eff6ff)';
+              setTimeout(() => { row.style.backgroundColor = ''; }, 1600);
+
+              const curVal = Number(input.value || 0);
+              input.value = curVal + 1;
+              input.focus();
+              input.select();
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              showToast('Stok Fisik Dihitung', `+1 ${p.name} (Total Fisik: ${input.value} ${p.unit})`);
+            } else {
+              showToast('Barang Ditemukan', `${p.name} (${p.sku}) tidak ada di daftar opname gudang ini.`, true);
+            }
+          } else {
+            showToast('Barang Tidak Ditemukan', `Kode "${rawCode}" tidak cocok dengan produk manapun.`, true);
+          }
+          return;
+        }
+
+        // 9. Context: Halaman Cetak Barcode & Label
+        if (ctx === 'barcodePage') {
           if (state.barcodeTab === 'custom') {
             state.barcodeCustomText = rawCode;
             render();
@@ -5054,14 +5190,122 @@
           return;
         }
 
-        // General context
-        if (p) {
-          state.stockCardProductId = p.id;
-          navigate('stockcard');
-          showToast('Barang Ditemukan', `Membuka Kartu Stok ${p.name} (${p.sku}).`);
-        } else {
-          showToast('Hasil Scan', `Kode terbaca: ${rawCode}`);
+        // 10. Default / Context Global (Topbar Quick Scan)
+        renderQuickScanProductModal(p, rawCode);
+      }
+
+      function renderQuickScanProductModal(p, rawCode) {
+        if (!p) {
+          openModal(`
+            <div class="modal-header">
+              <div>
+                <h2 id="modalTitle">${icon('alert')} Barcode Belum Terdaftar</h2>
+                <p>Kode barcode ini belum tercatat pada Master Data Barang StokKita.</p>
+              </div>
+              <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
+            </div>
+            <div class="modal-body" style="text-align:center;padding:24px 16px;">
+              <div style="display:inline-flex;padding:12px 20px;border-radius:12px;background:var(--ink-100);font-family:monospace;font-size:18px;font-weight:700;color:var(--ink-800);letter-spacing:1px;margin-bottom:14px;border:1px dashed var(--ink-300);">
+                ${escapeHtml(rawCode)}
+              </div>
+              <p style="color:var(--ink-600);font-size:13px;max-width:380px;margin:0 auto 20px;line-height:1.5;">
+                Ingin mendaftarkan barang baru dengan kode ini secara langsung?
+              </p>
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn btn-secondary" data-action="open-barcode-scanner" data-context="global">
+                  ${icon('scan')} Scan Ulang
+                </button>
+                <button class="btn btn-primary" data-action="create-scanned-product" data-code="${escapeHtml(rawCode)}">
+                  ${icon('plus')} Tambah Barang Baru
+                </button>
+              </div>
+            </div>
+          `, true);
+          return;
         }
+
+        const total = totalStock(p);
+        const minVal = getProductMin(p);
+        const [stText, stClass] = stockState(p);
+        const photoSrc = p.photo || p.foto;
+        const thumbHtml = photoSrc
+          ? `<img src="${escapeHtml(photoSrc)}" alt="${escapeHtml(p.name)}" style="width:72px;height:72px;border-radius:12px;object-fit:cover;border:1px solid var(--ink-200);">`
+          : `<div style="width:72px;height:72px;border-radius:12px;background:linear-gradient(135deg,var(--brand-500),var(--brand-700));color:#fff;display:grid;place-items:center;font-size:24px;font-weight:800;">${p.name.slice(0, 2).toUpperCase()}</div>`;
+
+        openModal(`
+          <div class="modal-header">
+            <div>
+              <h2 id="modalTitle">${icon('barcode')} Hasil Scan Cepat Barang</h2>
+              <p>Informasi saldo stok real-time & opsi tindakan cepat.</p>
+            </div>
+            <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
+          </div>
+          <div class="modal-body" style="max-height:540px;overflow-y:auto;">
+            <div style="display:flex;gap:16px;align-items:center;padding:12px;background:var(--ink-50);border-radius:12px;border:1px solid var(--ink-100);margin-bottom:16px;">
+              ${thumbHtml}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:18px;font-weight:700;color:var(--ink-900);line-height:1.2;">${escapeHtml(p.name)}</div>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:5px;flex-wrap:wrap;">
+                  <span style="font-family:monospace;background:var(--ink-200);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;">SKU: ${escapeHtml(p.sku)}</span>
+                  ${p.barcode ? `<span style="font-family:monospace;background:var(--brand-50);color:var(--brand-700);padding:2px 6px;border-radius:4px;font-size:11px;">Barcode: ${escapeHtml(p.barcode)}</span>` : ''}
+                  <span class="cat-badge" style="font-size:11px;">${escapeHtml(p.category)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-bottom:16px;">
+              <div style="padding:10px;border-radius:10px;background:#fff;border:1px solid var(--ink-200);text-align:center;">
+                <div style="font-size:11px;color:var(--ink-500);font-weight:600;">Total Stok</div>
+                <div style="font-size:20px;font-weight:800;color:var(--ink-900);margin-top:2px;">${rupiah.format(total)} <small style="font-size:11px;font-weight:500;">${escapeHtml(p.unit)}</small></div>
+              </div>
+              <div style="padding:10px;border-radius:10px;background:#fff;border:1px solid var(--ink-200);text-align:center;">
+                <div style="font-size:11px;color:var(--ink-500);font-weight:600;">Status</div>
+                <div style="margin-top:4px;">${badge(stText)}</div>
+              </div>
+              <div style="padding:10px;border-radius:10px;background:#fff;border:1px solid var(--ink-200);text-align:center;">
+                <div style="font-size:11px;color:var(--ink-500);font-weight:600;">Stok Minimum</div>
+                <div style="font-size:16px;font-weight:700;color:var(--ink-700);margin-top:4px;">${minVal} <small style="font-size:11px;font-weight:500;">${escapeHtml(p.unit)}</small></div>
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <div style="font-size:12px;font-weight:700;color:var(--ink-700);margin-bottom:8px;">Sebaran Stok per Lokasi Gudang:</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;">
+                ${store.warehouses.map(w => {
+                  const qty = (p.stocks && p.stocks[w.name]) || 0;
+                  return `
+                    <div style="padding:8px 10px;border-radius:8px;background:var(--ink-100);display:flex;justify-content:space-between;align-items:center;">
+                      <span style="font-size:11px;color:var(--ink-700);">${escapeHtml(w.name)}</span>
+                      <strong style="font-size:13px;color:var(--ink-900);">${qty} ${escapeHtml(p.unit)}</strong>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div style="font-size:12px;font-weight:700;color:var(--ink-700);margin-bottom:8px;">Aksi Cepat:</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:8px;">
+              <button class="btn btn-secondary btn-sm" data-action="quick-scan-tx" data-type="incoming" data-prod-id="${p.id}" style="justify-content:center;gap:6px;color:var(--brand-700);border-color:var(--brand-200);">
+                ${icon('in')} Catat Masuk (Restock)
+              </button>
+              <button class="btn btn-secondary btn-sm" data-action="quick-scan-tx" data-type="outgoing" data-prod-id="${p.id}" style="justify-content:center;gap:6px;color:var(--danger);border-color:#f1c9ce;">
+                ${icon('out')} Catat Keluar (Kirim)
+              </button>
+              <button class="btn btn-secondary btn-sm" data-action="quick-scan-stockcard" data-prod-id="${p.id}" style="justify-content:center;gap:6px;">
+                ${icon('eye')} Buku Kartu Stok
+              </button>
+              <button class="btn btn-secondary btn-sm" data-action="quick-scan-label" data-prod-id="${p.id}" style="justify-content:center;gap:6px;">
+                ${icon('barcode')} Cetak Label Barcode
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:space-between;">
+            <button class="btn btn-secondary" data-action="open-barcode-scanner" data-context="global">
+              ${icon('scan')} Scan Barang Lain
+            </button>
+            <button class="btn btn-secondary" data-action="close-modal">Tutup</button>
+          </div>
+        `, true);
       }
 
       function startBarcodeScannerPolling(context) {
@@ -5762,7 +6006,7 @@
         const staffWh = (state.currentUser && state.currentUser.warehouse && state.currentUser.warehouse !== 'Semua Gudang') ? state.currentUser.warehouse : 'Gudang Utama';
         const allowedWarehouse = state.role === 'STAFF' ? staffWh : state.stockWarehouse;
         const filtered = store.products.filter(p => {
-          const text = `${p.name} ${p.sku} ${p.category}`.toLowerCase();
+          const text = `${p.name} ${p.sku} ${p.barcode || ''} ${p.category}`.toLowerCase();
           const status = stockState(p, allowedWarehouse)[0];
           const matchesText = text.includes(state.stockQuery.toLowerCase());
           const matchesStatus = state.stockStatus === 'Semua Status' || state.stockStatus === status;
@@ -5777,7 +6021,7 @@
           <button class="btn btn-secondary" data-action="export-current-stock">${icon('download')}<span class="btn-label-hide">Ekspor Excel</span></button>
           <button class="btn btn-primary" data-action="refresh">${icon('refresh')}<span class="btn-label-hide">Perbarui</span></button>`)}
           <div class="card filters">
-            <div class="field grow"><label for="stockSearch">Cari barang</label><div class="input-wrap">${icon('search', 'input-icon')}<input id="stockSearch" class="control with-icon" value="${state.stockQuery}" placeholder="Nama, SKU, atau kategori…"></div></div>
+            <div class="field grow"><label for="stockSearch">Cari barang</label><div class="input-wrap" style="position:relative">${icon('search', 'input-icon')}<input id="stockSearch" class="control with-icon" value="${state.stockQuery}" placeholder="Nama, SKU, barcode, atau kategori…" style="padding-right:75px"><button type="button" class="btn btn-secondary btn-sm" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 8px;gap:4px;font-size:11px" data-action="open-barcode-scanner" data-context="stockSearch" title="Scan Barcode untuk cari">${icon('scan')} Scan</button></div></div>
             <div class="field half-mobile"><label for="stockWarehouse">Gudang</label><select id="stockWarehouse" class="control">${warehouseOptions.map(x => `<option value="${x}" ${allowedWarehouse === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
             <div class="field half-mobile"><label for="stockStatus">Status</label><select id="stockStatus" class="control">${['Semua Status', 'Aman', 'Menipis', 'Habis'].map(x => `<option value="${x}" ${state.stockStatus === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
           </div>
@@ -5937,11 +6181,16 @@
           <div class="card filters" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:16px;">
             <div class="field" style="grid-column:span 2;min-width:260px;">
               <label for="stockCardProductSelect">Pilih Barang *</label>
-              <select id="stockCardProductSelect" class="control" style="font-weight:600;">
-                ${activeProducts.map(p => `
-                  <option value="${p.id}" ${p.id === prod.id ? 'selected' : ''}>${escapeHtml(p.name)} [${escapeHtml(p.sku)}] — Total: ${totalStock(p)} ${escapeHtml(p.unit)}</option>
-                `).join('')}
-              </select>
+              <div style="display:flex;gap:8px;">
+                <select id="stockCardProductSelect" class="control" style="font-weight:600;flex:1;">
+                  ${activeProducts.map(p => `
+                    <option value="${p.id}" ${p.id === prod.id ? 'selected' : ''}>${escapeHtml(p.name)} [${escapeHtml(p.sku)}] — Total: ${totalStock(p)} ${escapeHtml(p.unit)}</option>
+                  `).join('')}
+                </select>
+                <button type="button" class="btn btn-secondary" data-action="open-barcode-scanner" data-context="stockCard" style="flex:none;gap:5px;white-space:nowrap;" title="Scan Barcode untuk beralih barang">
+                  ${icon('scan')} Scan
+                </button>
+              </div>
             </div>
             <div class="field">
               <label for="stockCardWhSelect">Lokasi Gudang</label>
@@ -7446,7 +7695,7 @@
 
       function productsPage() {
         const filtered = store.products.filter(p => {
-          const text = `${p.name} ${p.sku} ${p.category}`.toLowerCase();
+          const text = `${p.name} ${p.sku} ${p.barcode || ''} ${p.category}`.toLowerCase();
           const matchesText = text.includes(state.productsQuery.toLowerCase());
           const matchesCat = state.productsCategory === 'Semua Kategori' || p.category === state.productsCategory;
           const matchesStatus = state.productsStatus === 'Semua Status' || (state.productsStatus === 'Aktif' ? p.active : !p.active);
@@ -7459,7 +7708,7 @@
           <button class="btn btn-secondary" data-action="export-current-stock">${icon('download')}<span class="btn-label-hide">Ekspor Excel</span></button>
           <button class="btn btn-primary" data-action="new-product">${icon('plus')} Barang baru</button>`)}
           <div class="card filters">
-            <div class="field grow"><label for="prodSearch">Cari barang</label><div class="input-wrap">${icon('search', 'input-icon')}<input id="prodSearch" class="control with-icon" value="${state.productsQuery}" placeholder="Nama atau SKU barang…"></div></div>
+            <div class="field grow"><label for="prodSearch">Cari barang</label><div class="input-wrap" style="position:relative">${icon('search', 'input-icon')}<input id="prodSearch" class="control with-icon" value="${state.productsQuery}" placeholder="Nama, SKU, barcode…" style="padding-right:75px"><button type="button" class="btn btn-secondary btn-sm" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 8px;gap:4px;font-size:11px" data-action="open-barcode-scanner" data-context="productSearch" title="Scan Barcode untuk cari">${icon('scan')} Scan</button></div></div>
             <div class="field half-mobile"><label for="prodCategory">Kategori</label><select id="prodCategory" class="control">${categories.map(c => `<option value="${c}" ${state.productsCategory === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
             <div class="field half-mobile"><label for="prodStatus">Status</label><select id="prodStatus" class="control">${['Semua Status', 'Aktif', 'Nonaktif'].map(s => `<option value="${s}" ${state.productsStatus === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
           </div>
@@ -7476,7 +7725,7 @@
                     ${thumbHtml}
                     <span>
                       <strong>${p.name}</strong>
-                      <span>${p.sku}</span>
+                      <span>${p.sku}${p.barcode && p.barcode !== p.sku ? ` &bull; <small style="color:var(--ink-500)">${escapeHtml(p.barcode)}</small>` : ''}</span>
                     </span>
                   </div>
                 </td>
@@ -7488,6 +7737,7 @@
                 <td>
                   <div style="display:flex;gap:6px">
                     <button class="icon-btn" style="width:32px;height:32px" data-action="edit-product" data-id="${p.id}" title="Edit ${p.name}">${icon('edit')}</button>
+                    <button class="icon-btn" style="width:32px;height:32px;color:var(--brand-700)" data-action="quick-scan-label" data-id="${p.id}" title="Cetak Label Barcode ${p.name}">${icon('barcode')}</button>
                     ${photoSrc ? `
                       <button class="icon-btn" style="width:32px;height:32px;color:var(--brand-600)" data-action="view-photo" data-id="${p.id}" data-photo="${escapeHtml(photoSrc)}" data-title="Foto Produk: ${escapeHtml(p.name)}" title="Lihat Foto Produk">${icon('camera')}</button>
                     ` : ''}
@@ -8451,12 +8701,15 @@
             <div class="section-heading"><h3>Daftar Barang yang Ditransfer (${lineItems.length} SKU)</h3><p>Ketik nama/SKU barang untuk menambahkan ke daftar mutasi.</p></div>
             <div class="item-editor" style="margin-bottom:14px">
               <div class="item-search">
-                <div class="product-search-box">
-                  <div class="input-wrap">
+                <div class="product-search-box" style="display:flex;gap:8px;align-items:center;">
+                  <div class="input-wrap" style="position:relative;flex:1;">
                     ${icon('search', 'input-icon')}
                     <input class="control with-icon" id="trfProductSearchInput" placeholder="Ketik nama atau SKU barang untuk menambah ke daftar transfer..." autocomplete="off">
                     <div id="trfProductSuggestions" class="product-suggestions-dropdown" style="display:none"></div>
                   </div>
+                  <button type="button" class="btn btn-secondary" data-action="open-barcode-scanner" data-context="transfer" style="flex:none;gap:6px;height:40px;white-space:nowrap;" title="Scan Barcode / QR dengan Kamera HP">
+                    ${icon('scan')} Scan Barcode HP
+                  </button>
                 </div>
               </div>
               <div id="trfLinesContainer">
@@ -8899,7 +9152,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px">
               <div class="input-wrap" style="flex:1">
                 ${icon('search', 'input-icon')}
-                <input class="control with-icon" id="opnameSheetFilter" placeholder="Cari nama atau SKU barang..." oninput="
+                <input class="control with-icon" id="opnameSheetFilter" placeholder="Cari nama, SKU, atau barcode barang..." oninput="
                   const q = this.value.toLowerCase();
                   document.querySelectorAll('.opname-row').forEach(r => {
                     const text = r.dataset.text || '';
@@ -8907,6 +9160,9 @@
                   });
                 ">
               </div>
+              <button class="btn btn-secondary btn-sm" type="button" data-action="open-barcode-scanner" data-context="opname" style="gap:5px;white-space:nowrap;" title="Scan Barcode untuk menghitung fisik">
+                ${icon('scan')} Scan Barcode
+              </button>
               <button class="btn btn-secondary btn-sm" type="button" onclick="
                 document.querySelectorAll('.opname-phys-input').forEach(inp => {
                   inp.value = inp.dataset.sys;
@@ -8925,7 +9181,7 @@
                 <tbody>
                   ${prods.map(p => {
           const sys = p.stocks[warehouse] || 0;
-          return `<tr class="opname-row" data-text="${p.name.toLowerCase()} ${p.sku.toLowerCase()}">
+          return `<tr class="opname-row" id="opnameRow_${p.id}" data-text="${p.name.toLowerCase()} ${p.sku.toLowerCase()} ${(p.barcode || '').toLowerCase()}" data-sku="${p.sku}" data-barcode="${p.barcode || ''}" data-prod-id="${p.id}">
                       <td>
                         <strong>${p.name}</strong>
                         <small style="display:block;color:var(--ink-500)">${p.sku} · ${p.unit}</small>
@@ -9611,10 +9867,10 @@
       }
 
       // Master Barang CRUD Modals
-      function openProductModal(prodId = null) {
+      function openProductModal(prodId = null, initialBarcode = '') {
         const isEdit = !!prodId;
         const defaultCat = store.categories[0]?.name || 'Umum';
-        const p = isEdit ? store.products.find(x => x.id === prodId) : { sku: '', name: '', category: defaultCat, unit: 'Pcs', min: 0, active: true };
+        const p = isEdit ? store.products.find(x => x.id === prodId) : { sku: initialBarcode || '', barcode: initialBarcode || '', name: '', category: defaultCat, unit: 'Pcs', min: 0, active: true };
         if (!p) return;
 
         state.productPhoto = isEdit ? (p.photo || p.foto || '') : '';
@@ -9641,6 +9897,16 @@
               <div class="field">
                 <label>SKU Barang *</label>
                 <input class="control" id="prodFormSku" value="${p.sku}" placeholder="Contoh: ATK-009">
+              </div>
+              <div class="field">
+                <label>Barcode / Kode EAN-13 (Opsional)</label>
+                <div style="display:flex;gap:8px;">
+                  <input class="control" id="prodFormBarcode" value="${p.barcode || ''}" placeholder="Scan atau ketik kode barcode..." style="flex:1;">
+                  <button type="button" class="btn btn-secondary" data-action="open-barcode-scanner" data-context="productFormBarcode" style="flex:none;gap:5px;white-space:nowrap;" title="Scan Barcode dengan Kamera">
+                    ${icon('scan')} Scan
+                  </button>
+                </div>
+                <small style="color:var(--ink-500);font-size:11px">Jika kosong, barcode akan otomatis disamakan dengan SKU.</small>
               </div>
               <div class="field">
                 <label>Nama Barang *</label>
@@ -9693,6 +9959,7 @@
       function executeSaveProduct() {
         const id = document.getElementById('prodFormId')?.value;
         const sku = document.getElementById('prodFormSku')?.value.trim();
+        const barcode = document.getElementById('prodFormBarcode')?.value.trim() || sku;
         const name = document.getElementById('prodFormName')?.value.trim();
         const category = document.getElementById('prodFormCat')?.value;
         const unit = document.getElementById('prodFormUnit')?.value;
@@ -9713,6 +9980,7 @@
           const p = store.products.find(x => x.id === id);
           if (p) {
             p.sku = sku;
+            p.barcode = barcode;
             p.name = name;
             p.category = category;
             p.unit = unit;
@@ -9731,6 +9999,7 @@
           store.products.push({
             id: newId,
             sku,
+            barcode,
             name,
             category,
             unit,
@@ -10603,14 +10872,19 @@
               <div class="field">
                 <label>Cari & Pilih Barang Bermasalah (Tulis Manual / SKU) *</label>
                 <div class="product-search-box">
-                  <div class="input-wrap">
-                    ${icon('search', 'input-icon')}
-                    <input class="control with-icon" id="dmgProductSearchInput" placeholder="Ketik nama atau kode/SKU barang..." autocomplete="off">
-                    <input type="hidden" id="dmgProduct" value="">
-                    <div id="dmgProductSuggestions" class="product-suggestions-dropdown" style="display:none"></div>
+                  <div style="display:flex;gap:8px;">
+                    <div class="input-wrap" style="position:relative;flex:1;">
+                      ${icon('search', 'input-icon')}
+                      <input class="control with-icon" id="dmgProductSearchInput" placeholder="Ketik nama atau kode/SKU/barcode barang..." autocomplete="off">
+                      <input type="hidden" id="dmgProduct" value="">
+                      <div id="dmgProductSuggestions" class="product-suggestions-dropdown" style="display:none"></div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-action="open-barcode-scanner" data-context="damaged" style="flex:none;gap:5px;white-space:nowrap;" title="Scan Barcode Barang Rusak">
+                      ${icon('scan')} Scan
+                    </button>
                   </div>
                   <div id="dmgSelectedProductBadge" style="margin-top:6px;font-size:11px;color:var(--ink-500);padding:6px 10px;background:var(--ink-100);border-radius:8px;border:1px solid var(--ink-200)">
-                    <em>Belum ada barang dipilih. Ketik nama atau SKU barang pada kolom di atas.</em>
+                    <em>Belum ada barang dipilih. Ketik nama, SKU, atau scan barcode barang.</em>
                   </div>
                 </div>
               </div>
@@ -12472,6 +12746,43 @@
           printBarcodeLabels();
           return;
         }
+        if (action === 'quick-scan-tx') {
+          const prodId = actionEl.dataset.prodId;
+          const txType = actionEl.dataset.type || 'incoming';
+          closeModal();
+          state.activeTxKind = txType;
+          state.transactionLines = [{ productId: prodId, qty: 1 }];
+          state.transactionParty = '';
+          state.transactionRef = '';
+          state.transactionNotes = '';
+          state.transactionPhoto = '';
+          renderNewTransactionModal();
+          return;
+        }
+        if (action === 'quick-scan-stockcard') {
+          const prodId = actionEl.dataset.prodId;
+          closeModal();
+          state.stockCardProductId = prodId;
+          navigate('stockcard');
+          render();
+          return;
+        }
+        if (action === 'quick-scan-label') {
+          const prodId = actionEl.dataset.prodId || actionEl.dataset.id;
+          closeModal();
+          state.barcodeTab = 'items';
+          state.barcodeSelectedProductIds = [prodId];
+          navigate('barcodes');
+          render();
+          renderBarcodePreviewGraphics();
+          return;
+        }
+        if (action === 'create-scanned-product') {
+          const code = actionEl.dataset.code || '';
+          closeModal();
+          openProductModal(null, code);
+          return;
+        }
 
         // Master Data CRUD
         if (action === 'new-product') return openProductModal();
@@ -13128,7 +13439,7 @@
           const domWh = document.getElementById('modalTxWarehouse')?.value;
           const activeWarehouse = (state.role === 'STAFF') ? staffWh : (domWh || state.transactionWarehouse || 'Gudang Utama');
           state.transactionWarehouse = activeWarehouse;
-          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)));
+          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q))));
           if (filtered.length === 0) {
             suggEl.innerHTML = `<div style="padding:10px 12px;color:var(--ink-500);font-size:11px;text-align:center">Barang tidak ditemukan.</div>`;
           } else {
@@ -13138,7 +13449,7 @@
               <div class="product-suggestion-item" data-pick-modal-tx-product="${p.id}">
                 <div class="product-suggestion-info">
                   <strong>${escapeHtml(p.name)}</strong>
-                  <small>SKU: <code>${escapeHtml(p.sku)}</code> · Kategori: ${escapeHtml(p.category)}</small>
+                  <small>SKU: <code>${escapeHtml(p.sku)}</code>${p.barcode && p.barcode !== p.sku ? ` · Barcode: <code>${escapeHtml(p.barcode)}</code>` : ''} · Kategori: ${escapeHtml(p.category)}</small>
                 </div>
                 <div class="product-suggestion-stock">
                   <span>Stok ${escapeHtml(activeWarehouse)}:</span>
@@ -13196,19 +13507,19 @@
             return;
           }
           const fromWh = state.transferFromWarehouse || document.getElementById('trfFrom')?.value || 'Gudang Utama';
-          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)));
+          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q))));
           if (filtered.length === 0) {
             suggEl.innerHTML = `<div style="padding:10px 12px;color:var(--ink-500);font-size:11px;text-align:center">Barang tidak ditemukan.</div>`;
           } else {
             suggEl.innerHTML = filtered.slice(0, 8).map(p => `
               <div class="product-suggestion-item" data-pick-trf-product="${p.id}">
                 <div class="product-suggestion-info">
-                  <strong>${p.name}</strong>
-                  <small>SKU: <code>${p.sku}</code> · ${p.category}</small>
+                  <strong>${escapeHtml(p.name)}</strong>
+                  <small>SKU: <code>${escapeHtml(p.sku)}</code>${p.barcode && p.barcode !== p.sku ? ` · Barcode: <code>${escapeHtml(p.barcode)}</code>` : ''} · ${escapeHtml(p.category)}</small>
                 </div>
                 <div class="product-suggestion-stock">
                   <span>Stok ${fromWh}:</span>
-                  <strong>${p.stocks[fromWh] || 0} ${p.unit}</strong>
+                  <strong>${p.stocks[fromWh] || 0} ${escapeHtml(p.unit)}</strong>
                 </div>
               </div>
             `).join('');
@@ -13226,15 +13537,15 @@
             return;
           }
           const wh = document.getElementById('dmgWarehouse')?.value || 'Gudang Utama';
-          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)));
+          const filtered = store.products.filter(p => p.active && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q))));
           if (filtered.length === 0) {
             suggEl.innerHTML = `<div style="padding:10px 12px;color:var(--ink-500);font-size:11px;text-align:center">Barang tidak ditemukan.</div>`;
           } else {
             suggEl.innerHTML = filtered.slice(0, 8).map(p => `
               <div class="product-suggestion-item" data-pick-dmg-product="${p.id}">
                 <div class="product-suggestion-info">
-                  <strong>${p.name}</strong>
-                  <small>SKU: <code>${p.sku}</code> · ${p.category}</small>
+                  <strong>${escapeHtml(p.name)}</strong>
+                  <small>SKU: <code>${escapeHtml(p.sku)}</code>${p.barcode && p.barcode !== p.sku ? ` · Barcode: <code>${escapeHtml(p.barcode)}</code>` : ''} · ${escapeHtml(p.category)}</small>
                 </div>
                 <div class="product-suggestion-stock">
                   <span>Stok ${wh}:</span>
