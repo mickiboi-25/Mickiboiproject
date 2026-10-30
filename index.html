@@ -1772,6 +1772,7 @@
     }
 
     /* Login Screen & Auth UI */
+    /* 2-Section Modern AI & Professional Login Layout */
     .login-overlay {
       position: fixed;
       inset: 0;
@@ -1779,55 +1780,276 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      background: radial-gradient(circle at top right, #1d6d59 0%, #104337 45%, #08241e 100%);
+      padding: 24px;
+      background: radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.16) 0%, transparent 45%),
+                  radial-gradient(circle at 85% 85%, rgba(5, 150, 105, 0.18) 0%, transparent 50%),
+                  #07130f;
       color: #fff;
       overflow-y: auto;
     }
 
-    .login-card {
+    .login-split-card {
       width: 100%;
-      max-width: 440px;
-      padding: 36px 30px 28px;
+      max-width: 1040px;
+      min-height: 590px;
+      border-radius: 24px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
       background: #ffffff;
-      color: var(--ink-950);
-      border-radius: 20px;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
-      animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 25px 80px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      animation: modal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .login-brand {
+    /* Section Kiri: Penjelasan & Kegunaan Aplikasi */
+    .login-info-section {
+      background: linear-gradient(155deg, #062b21 0%, #031c15 55%, #01110c 100%);
+      padding: 44px 40px;
+      color: #ffffff;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      text-align: center;
-      margin-bottom: 24px;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      border-right: 1px solid rgba(255, 255, 255, 0.07);
     }
 
-    .login-brand .brand-mark {
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      background: var(--brand-500);
+    .login-info-section::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(16, 185, 129, 0.14) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+    }
+
+    .login-info-glow {
+      position: absolute;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.28) 0%, transparent 70%);
+      top: -60px;
+      right: -60px;
+      filter: blur(35px);
+      pointer-events: none;
+    }
+
+    .login-info-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 99px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      font-size: 11px;
+      font-weight: 700;
+      color: #34d399;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    .ai-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .login-info-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .login-info-brand .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #047857);
       color: #fff;
-      margin-bottom: 12px;
-      box-shadow: 0 8px 20px rgba(33, 135, 109, 0.3);
       display: grid;
       place-items: center;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
     }
 
-    .login-brand h1 {
+    .login-info-brand h2 {
       margin: 0;
       font-size: 22px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      color: var(--brand-700);
+      color: #ffffff;
+      line-height: 1.1;
     }
 
-    .login-brand p {
-      margin: 4px 0 0;
-      color: var(--ink-500);
+    .login-info-brand span {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      display: block;
+    }
+
+    .login-info-title {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.6px;
+      margin: 0 0 10px;
+      color: #ffffff;
+    }
+
+    .login-info-title .gradient-text {
+      background: linear-gradient(90deg, #6ee7b7, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .login-info-desc {
+      font-size: 13px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.72);
+      margin: 0 0 24px;
+    }
+
+    /* Micro Feature Cards */
+    .login-feature-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .login-feature-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+    }
+
+    .login-feature-item:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(52, 211, 153, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .login-feature-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .login-feature-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      display: grid;
+      place-items: center;
+      flex: none;
+    }
+
+    .login-feature-icon .icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .login-feature-item strong {
       font-size: 12px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .login-feature-item p {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Bottom Trust Pills */
+    .login-info-footer {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .login-trust-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .login-trust-pill .icon {
+      width: 13px;
+      height: 13px;
+      color: #34d399;
+    }
+
+    /* Section Kanan: Login Form */
+    .login-form-section {
+      padding: 44px 40px;
+      background: #ffffff;
+      color: var(--ink-950);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .login-form-header {
+      margin-bottom: 24px;
+    }
+
+    .login-form-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--brand-700);
+      margin-bottom: 6px;
+    }
+
+    .login-form-header h2 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--ink-900);
+    }
+
+    .login-form-header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--ink-500);
     }
 
     .login-form {
@@ -1840,11 +2062,20 @@
       font-weight: 700;
       margin-bottom: 6px;
       display: block;
+      color: var(--ink-800);
     }
 
     .login-form .control {
-      height: 44px;
+      height: 46px;
       font-size: 13px;
+      border-radius: 10px;
+      border: 1px solid var(--ink-200);
+      transition: all 0.2s ease;
+    }
+
+    .login-form .control:focus {
+      border-color: var(--brand-500);
+      box-shadow: 0 0 0 3px rgba(33, 135, 109, 0.15);
     }
 
     .pw-input-wrap {
@@ -1872,50 +2103,117 @@
       background: var(--ink-100);
     }
 
+    /* Quick Access / Demo Account Chips */
+    .login-quick-chips {
+      margin-top: -4px;
+      margin-bottom: 4px;
+    }
+
+    .login-quick-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-500);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .login-chips-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .quick-chip-btn {
+      border: 1px solid var(--ink-200);
+      background: var(--ink-50);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-700);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .quick-chip-btn:hover {
+      border-color: var(--brand-400);
+      background: var(--brand-50);
+      color: var(--brand-800);
+      transform: translateY(-1px);
+    }
+
     .btn-login {
-      height: 46px;
+      height: 48px;
       font-size: 14px;
       font-weight: 700;
-      border-radius: 10px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
       margin-top: 6px;
       width: 100%;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-login:hover {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+      transform: translateY(-1px);
     }
 
     .login-footer-security {
-      margin-top: 18px;
+      margin-top: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
       font-size: 11px;
       color: var(--ink-500);
+      text-align: center;
     }
 
     @keyframes loginShake {
-
-      0%,
-      100% {
-        transform: translateX(0);
-      }
-
-      20%,
-      60% {
-        transform: translateX(-6px);
-      }
-
-      40%,
-      80% {
-        transform: translateX(6px);
-      }
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
     }
 
     .input-error {
       border-color: var(--danger) !important;
       box-shadow: 0 0 0 3px rgba(201, 60, 74, 0.2) !important;
+    }
+
+    /* Mobile Responsive for Split Login */
+    @media (max-width: 880px) {
+      .login-split-card {
+        grid-template-columns: 1fr;
+        max-width: 480px;
+        min-height: auto;
+      }
+
+      .login-info-section {
+        padding: 30px 24px;
+      }
+
+      .login-feature-list {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .login-form-section {
+        padding: 32px 24px;
+      }
     }
 
     /* Topbar Logout Button & Sidebar User Chip */
@@ -13186,6 +13484,26 @@
           }
           return;
         }
+
+        const fillLoginEl = event.target.closest('[data-fill-login]');
+        if (fillLoginEl) {
+          const role = fillLoginEl.dataset.fillLogin;
+          const uInp = document.getElementById('loginUsername');
+          const pInp = document.getElementById('loginPassword');
+          if (role === 'admin') {
+            if (uInp) uInp.value = 'admin';
+            if (pInp) pInp.value = 'admin';
+          } else if (role === 'staf') {
+            if (uInp) uInp.value = 'staf';
+            if (pInp) pInp.value = 'staf123';
+          }
+          if (uInp) uInp.classList.remove('input-error');
+          if (pInp) pInp.classList.remove('input-error');
+          const alertBox = document.getElementById('loginAlertBox');
+          if (alertBox) alertBox.style.display = 'none';
+          showToast('Kredensial Terisi', `Username & password akun ${role.toUpperCase()} telah dimasukkan.`);
+          return;
+        }
       });
 
       // Submit Login Form Listener
@@ -13840,6 +14158,7 @@
       });
 
       // Render Login Screen Component
+      // Render Login Screen Component (2-Section AI-Grade Layout)
       function renderLoginScreen() {
         const loginEl = document.getElementById('loginScreen');
         if (!loginEl) return;
@@ -13847,43 +14166,140 @@
         const noticeMsg = state.loginNotice || '';
 
         loginEl.innerHTML = `
-          <div class="login-card">
-            <div class="login-brand">
-              <div class="brand-mark"><svg class="icon" width="28" height="28"><use href="#i-box"/></svg></div>
-              <h1>StokKita</h1>
-              <p>Sistem Inventori Multi Gudang</p>
-            </div>
-            <div id="loginAlertBox" style="${noticeMsg ? '' : 'display:none;'}margin-bottom:16px;">
-              ${noticeMsg ? `
-                <div style="background:var(--warning-soft);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--warning);animation:loginShake 0.35s ease">
-                  ${icon('alert')}
-                  <div style="flex:1;line-height:1.4">${noticeMsg}</div>
+          <div class="login-split-card">
+            <!-- SECTION KIRI: Penjelasan & Kegunaan Aplikasi -->
+            <div class="login-info-section">
+              <div class="login-info-glow"></div>
+              <div class="login-info-content">
+                <div class="ai-badge">
+                  <span class="ai-dot"></span> Next-Gen Warehouse Platform
                 </div>
-              ` : ''}
-            </div>
-            <form id="loginForm" class="login-form">
-              <div class="field">
-                <label for="loginUsername">Username (Nama Pengguna)</label>
-                <div class="input-wrap">
-                  ${icon('user', 'input-icon')}
-                  <input class="control with-icon" id="loginUsername" placeholder="Masukkan username" autocomplete="username" required>
-                </div>
-              </div>
-              <div class="field">
-                <label for="loginPassword">Kata Sandi (Password)</label>
-                <div class="input-wrap pw-input-wrap">
-                  ${icon('lock', 'input-icon')}
-                  <input type="password" class="control with-icon" id="loginPassword" placeholder="Masukkan kata sandi" autocomplete="current-password" required>
-                  <button type="button" class="pw-toggle-btn" data-toggle-pw="loginPassword" aria-label="Lihat password">${icon('eye')}</button>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-login">
-                ${icon('lock')} <span>Masuk ke Sistem</span>
-              </button>
-            </form>
 
-            <div class="login-footer-security">
-              ${icon('shield')} <span>Sesi Terenkripsi & Akses Inventori Terlindungi</span>
+                <div class="login-info-brand">
+                  <div class="brand-mark">
+                    <svg class="icon" width="24" height="24"><use href="#i-box"/></svg>
+                  </div>
+                  <div>
+                    <h2>StokKita</h2>
+                    <span>Sistem Inventori Multi-Gudang</span>
+                  </div>
+                </div>
+
+                <h1 class="login-info-title">
+                  Platform Inventori <span class="gradient-text">Multi-Gudang Cerdas</span> & Real-Time
+                </h1>
+
+                <p class="login-info-desc">
+                  Solusi terintegrasi untuk pencatatan stok fisik, transfer antar cabang, scan barcode mandiri, dan pelaporan mutasi barang tanpa risiko selisih data.
+                </p>
+
+                <!-- Grid Kegunaan & Fitur Unggulan -->
+                <div class="login-feature-list">
+                  <div class="login-feature-item">
+                    <div class="login-feature-header">
+                      <div class="login-feature-icon">${icon('building')}</div>
+                      <strong>Multi-Gudang Real-time</strong>
+                    </div>
+                    <p>Sinkronisasi saldo stok lintas cabang otomatis & langsung tersimpan di Google Sheets.</p>
+                  </div>
+
+                  <div class="login-feature-item">
+                    <div class="login-feature-header">
+                      <div class="login-feature-icon">${icon('barcode')}</div>
+                      <strong>Smart Barcode Scanner</strong>
+                    </div>
+                    <p>Scan barcode / QR lewat kamera HP bebas batas sandbox dan cetak label thermal instan.</p>
+                  </div>
+
+                  <div class="login-feature-item">
+                    <div class="login-feature-header">
+                      <div class="login-feature-icon">${icon('file')}</div>
+                      <strong>Buku Kartu Stok & Audit</strong>
+                    </div>
+                    <p>Buku besar mutasi transparan per-item dengan jejak waktu, nomor surat jalan, dan petugas.</p>
+                  </div>
+
+                  <div class="login-feature-item">
+                    <div class="login-feature-header">
+                      <div class="login-feature-icon">${icon('chart')}</div>
+                      <strong>Dead Stock Intelligence</strong>
+                    </div>
+                    <p>Deteksi dini stok mati, analisis barang lambat bergerak, dan visualisasi produk terlaris.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Trust & Database Sync Info -->
+              <div class="login-info-footer">
+                <div class="login-trust-pill">
+                  <span class="ai-dot" style="width:6px;height:6px;"></span>
+                  <span>Google Spreadsheet Cloud Database</span>
+                </div>
+                <div class="login-trust-pill">
+                  ${icon('check')}
+                  <span>Audit Trail Otomatis</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION KANAN: Login User -->
+            <div class="login-form-section">
+              <div class="login-form-header">
+                <span class="login-form-badge">PORTAL AKSES PENGGUNA</span>
+                <h2>Masuk ke Sistem</h2>
+                <p>Masukkan username dan kata sandi untuk mengakses inventori.</p>
+              </div>
+
+              <div id="loginAlertBox" style="${noticeMsg ? '' : 'display:none;'}margin-bottom:16px;">
+                ${noticeMsg ? `
+                  <div style="background:var(--warning-soft);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--warning);animation:loginShake 0.35s ease">
+                    ${icon('alert')}
+                    <div style="flex:1;line-height:1.4">${noticeMsg}</div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <form id="loginForm" class="login-form">
+                <div class="field">
+                  <label for="loginUsername">Username (Nama Pengguna)</label>
+                  <div class="input-wrap">
+                    ${icon('user', 'input-icon')}
+                    <input class="control with-icon" id="loginUsername" placeholder="Contoh: admin atau nama staf" autocomplete="username" required>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label for="loginPassword">Kata Sandi (Password)</label>
+                  <div class="input-wrap pw-input-wrap">
+                    ${icon('lock', 'input-icon')}
+                    <input type="password" class="control with-icon" id="loginPassword" placeholder="Masukkan kata sandi" autocomplete="current-password" required>
+                    <button type="button" class="pw-toggle-btn" data-toggle-pw="loginPassword" aria-label="Lihat password">${icon('eye')}</button>
+                  </div>
+                </div>
+
+                <!-- Akses Cepat / Demo Shortcuts -->
+                <div class="login-quick-chips">
+                  <div class="login-quick-label">
+                    ${icon('zap')} Akses Cepat:
+                  </div>
+                  <div class="login-chips-group">
+                    <button type="button" class="quick-chip-btn" data-fill-login="admin" title="Isi kredensial Admin">
+                      <strong>Admin</strong> (admin)
+                    </button>
+                    <button type="button" class="quick-chip-btn" data-fill-login="staf" title="Isi kredensial Staf">
+                      <strong>Staf Gudang</strong> (staf)
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login">
+                  ${icon('lock')} <span>Masuk ke Dashboard</span>
+                </button>
+              </form>
+
+              <div class="login-footer-security">
+                ${icon('shield')} <span>Dilindungi Enkripsi Sesi & Akses Berbasis Peran (RBAC)</span>
+              </div>
             </div>
           </div>
         `;
