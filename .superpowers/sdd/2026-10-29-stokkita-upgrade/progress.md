@@ -21,8 +21,18 @@ Pre-flight: no shared interfaces conflict
 - Commit: `44a4e36`
 - Verification: Upgraded dashboard ranking with podium medals, dynamic percentage bars, unit labels, transaction count, and direct link to Kartu Stok with product pre-selection.
 
+## Task 5: Modul Barcode & QR Code Center (Generator & Cetak Label)
+- Status: COMPLETED
+- Commit: `9597099` ("feat: implement barcode and qr code center with label printing and mobile camera scanner")
+- Verification: Added route 'barcodes', 2-column layout matching reference mockup (Choose items, Code type, Printing settings, Live label preview), JsBarcode & QRCode rendering, and multi-mode printing (Thermal individual label & A4 sheets).
+
+## Task 6: Mobile Phone Camera Scanner (Bypass Sandbox)
+- Status: COMPLETED
+- Commit: `9597099`
+- Verification: Added 'openBarcodeScannerPopup' using Html5Qrcode on rear camera, laser scan animation, Web Audio API beep + vibration, integrated into transaction modal for instant item insertion.
+
 ## Deployment:
 - Clasp Push: SUCCESS (appsscript.json, index.html, Kode.js, TABCAMERA.js)
-- Deployment ID: `AKfycbzXOcMfPvPRbT9mmBYZNxivglG4n3_2I9EuIArJ1327bPqobwzI4hyUKjc3GKjkGZZu3w` (@5)
+- Deployment ID: `AKfycbzXOcMfPvPRbT9mmBYZNxivglG4n3_2I9EuIArJ1327bPqobwzI4hyUKjc3GKjkGZZu3w` (@8)
 - Web App URL: https://script.google.com/macros/s/AKfycbzXOcMfPvPRbT9mmBYZNxivglG4n3_2I9EuIArJ1327bPqobwzI4hyUKjc3GKjkGZZu3w/exec
 - Verification: HTTP 200 OK, live site loaded.
