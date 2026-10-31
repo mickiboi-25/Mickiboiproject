@@ -5441,10 +5441,13 @@
   <title>Scanner Barcode & QR StokKita</title>
   <style>
     :root {
-      --brand: #176b57;
-      --bg: #0c1613;
-      --surface: #15221e;
-      --ink: #edf3f0;
+      --brand: #10b981;
+      --brand-dark: #059669;
+      --bg: #091310;
+      --surface: #13241e;
+      --surface-border: #1e382f;
+      --ink: #f0fdf4;
+      --ink-muted: #94a3b8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -5456,25 +5459,48 @@
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      padding: 16px;
+      padding: 16px 14px 22px;
     }
     .scanner-header {
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       width: 100%;
     }
-    .scanner-header h2 { font-size: 18px; margin-bottom: 4px; color: #fff; }
-    .scanner-header p { font-size: 12px; color: #9cb1aa; }
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 99px;
+      background: #1e382f;
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(52, 211, 153, 0.25);
+    }
+    .step-pill.scanned {
+      background: #10b981;
+      color: #064e3b;
+      border-color: #34d399;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.6);
+    }
+    .scanner-header h2 { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 3px; }
+    .scanner-header p { font-size: 12px; color: var(--ink-muted); line-height: 1.4; }
+
     .viewport-card {
       position: relative;
       width: 100%;
       max-width: 440px;
-      height: 380px;
+      height: 350px;
       background: #000;
-      border-radius: 16px;
+      border-radius: 18px;
       overflow: hidden;
-      border: 2px solid #263832;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      border: 2px solid var(--surface-border);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.7);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -5498,15 +5524,15 @@
       border: 2px solid rgba(255, 255, 255, 0.4);
       border-radius: 16px;
       pointer-events: none;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
     }
     .laser-line {
       position: absolute;
       left: 8px;
       right: 8px;
       height: 3px;
-      background: linear-gradient(90deg, transparent, #33b895, #4bd9b3, #33b895, transparent);
-      box-shadow: 0 0 12px #33b895;
+      background: linear-gradient(90deg, transparent, #34d399, #10b981, #34d399, transparent);
+      box-shadow: 0 0 14px #10b981;
       animation: scanLaser 2s infinite ease-in-out;
       border-radius: 2px;
     }
@@ -5519,7 +5545,7 @@
       position: absolute;
       width: 22px;
       height: 22px;
-      border-color: #4bd9b3;
+      border-color: #34d399;
       border-style: solid;
       pointer-events: none;
     }
@@ -5527,19 +5553,110 @@
     .corner-tr { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-top-right-radius: 14px; }
     .corner-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-bottom-left-radius: 14px; }
     .corner-br { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-bottom-right-radius: 14px; }
-    .status-badge {
-      margin-top: 10px;
-      padding: 6px 14px;
-      border-radius: 99px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #182823;
-      color: #9cb1aa;
-      text-align: center;
-      max-width: 90%;
+
+    /* Floating Result Card - High Impact */
+    .scan-result-card {
+      width: 100%;
+      max-width: 440px;
+      margin-top: 12px;
+      padding: 13px 16px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #13241e, #0e1c17);
+      border: 1.5px solid #1e382f;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.25s ease;
     }
-    .status-badge.success { background: #16382e; color: #4bd9b3; }
-    .status-badge.error { background: #38191c; color: #e25c6a; }
+    .scan-result-card.scanned {
+      border-color: #10b981;
+      background: linear-gradient(145deg, #133327, #0e241b);
+      box-shadow: 0 8px 30px rgba(16, 185, 129, 0.25);
+    }
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .result-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #1e382f;
+      color: #94a3b8;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      font-weight: 900;
+      flex-shrink: 0;
+      transition: all 0.25s ease;
+    }
+    .result-icon.active {
+      background: #10b981;
+      color: #064e3b;
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.6);
+    }
+    .result-meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .result-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .result-label.active {
+      color: #34d399;
+    }
+    .result-code {
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Primary CTA Button for Proceeding */
+    .btn-proceed {
+      width: 100%;
+      min-height: 50px;
+      padding: 12px 18px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      border: 0;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4);
+      transition: all 0.15s ease;
+      animation: pulseBtn 2s infinite;
+    }
+    .btn-proceed:active {
+      transform: scale(0.98);
+      filter: brightness(0.95);
+    }
+    @keyframes pulseBtn {
+      0% { box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 4px 28px rgba(16, 185, 129, 0.7); }
+      100% { box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4); }
+    }
+
+    /* Controls at bottom */
     .controls {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -5549,7 +5666,7 @@
       margin-top: 14px;
     }
     .btn {
-      padding: 12px;
+      padding: 12px 14px;
       border-radius: 12px;
       font-weight: 700;
       font-size: 13px;
@@ -5559,66 +5676,63 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
+      transition: all 0.15s ease;
     }
-    .btn-secondary { background: #182823; color: #cfded8; border-color: #263832; }
-    .btn-secondary:hover { background: #263832; }
-    .btn-close { grid-column: span 2; background: transparent; color: #7b928a; border-color: #263832; }
-    .btn-close:hover { color: #fff; border-color: #7b928a; }
+    .btn-secondary {
+      background: #182823;
+      color: #cfded8;
+      border-color: #263832;
+    }
+    .btn-secondary:active { background: #263832; }
 
-    /* Success Confirmation Card Overlay */
-    .scan-success-card {
-      position: absolute;
+    /* The Main Finish / Close Button */
+    .btn-finish {
+      grid-column: span 2;
+      min-height: 52px;
+      font-size: 15px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid #334d43;
+      background: #1a2f27;
+      color: #e2e8f0;
+    }
+    .btn-finish:hover {
+      background: #223f34;
+      border-color: #436558;
+    }
+    .btn-finish.scanned {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      border-color: #34d399;
+      box-shadow: 0 6px 22px rgba(16, 185, 129, 0.5);
+      font-size: 15px;
+    }
+    .hint-subtext {
+      grid-column: span 2;
+      text-align: center;
+      font-size: 11px;
+      color: #7b928a;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    /* Fallback Screen if mobile browser blocks window.close() */
+    .close-fallback-overlay {
+      position: fixed;
       inset: 0;
-      background: rgba(12, 28, 22, 0.94);
-      backdrop-filter: blur(5px);
-      z-index: 25;
+      background: rgba(8, 18, 14, 0.96);
+      backdrop-filter: blur(8px);
+      z-index: 100;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 20px;
-      animation: popIn 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .success-check-badge {
-      width: 62px;
-      height: 62px;
-      border-radius: 50%;
-      background: #10b981;
-      color: #fff;
-      display: grid;
-      place-items: center;
-      font-size: 32px;
-      font-weight: 900;
-      margin-bottom: 12px;
-      box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
-    }
-    .success-title {
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      color: #34d399;
-      margin-bottom: 6px;
-    }
-    .success-code {
-      font-size: 14px;
-      font-family: monospace;
-      color: #fff;
-      background: rgba(255, 255, 255, 0.12);
-      padding: 6px 14px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      max-width: 90%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      border: 1px dashed rgba(255,255,255,0.25);
-    }
-    .success-sub {
-      font-size: 12px;
-      color: #94a3b8;
+      padding: 24px;
+      animation: popIn 0.25s ease-out;
     }
     @keyframes popIn {
-      from { transform: scale(0.85); opacity: 0; }
+      from { transform: scale(0.88); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
   </style>
@@ -5626,8 +5740,9 @@
 </head>
 <body>
   <div class="scanner-header">
+    <div id="stepPill" class="step-pill">1. ARAHKAN KAMERA KE BARCODE</div>
     <h2>Scanner Barcode & QR</h2>
-    <p>Arahkan kamera HP ke barcode 1D atau QR code barang</p>
+    <p id="subPrompt">Arahkan kamera ke barcode produk sampai terdengar bunyi beep</p>
   </div>
 
   <div class="viewport-card">
@@ -5639,22 +5754,51 @@
       <div class="corner corner-br"></div>
       <div class="laser-line"></div>
     </div>
-
-    <!-- Live Scan Success Overlay -->
-    <div id="scanSuccessCard" class="scan-success-card" style="display:none;">
-      <div class="success-check-badge">✓</div>
-      <div class="success-title">BARCODE TERBACA!</div>
-      <div id="successCardCode" class="success-code"></div>
-      <div class="success-sub">Menghubungkan ke aplikasi utama...</div>
-    </div>
   </div>
 
-  <div id="statusBadge" class="status-badge">Menyiapkan kamera HP...</div>
+  <!-- Live Dynamic Result Card -->
+  <div id="scanResultCard" class="scan-result-card">
+    <div class="result-row">
+      <div id="resultIcon" class="result-icon">📷</div>
+      <div class="result-meta">
+        <span id="resultLabel" class="result-label">MENUNGGU SCAN BARCODE...</span>
+        <strong id="resultCode" class="result-code">Belum ada barang dibaca</strong>
+      </div>
+    </div>
+    <!-- Big Proceed Action Button appears when scanned -->
+    <button type="button" id="btnProceedTop" class="btn-proceed" style="display:none;" onclick="finishAndProceed()">
+      <span>✓ SELESAI &amp; LANJUTKAN KE HASIL</span>
+      <span style="font-size:18px;">&rarr;</span>
+    </button>
+  </div>
 
   <div class="controls">
-    <button type="button" class="btn btn-secondary" id="switchCameraBtn" onclick="switchCamera()">Ganti Kamera</button>
-    <button type="button" class="btn btn-secondary" id="toggleModeBtn" onclick="toggleContinuousMode()">Mode Scan</button>
-    <button type="button" class="btn btn-close" onclick="closeScannerWindow()">Selesai / Tutup</button>
+    <button type="button" class="btn btn-secondary" id="switchCameraBtn" onclick="switchCamera()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      Ganti Kamera
+    </button>
+    <button type="button" class="btn btn-secondary" id="toggleModeBtn" onclick="toggleContinuousMode()">
+      Mode Scan
+    </button>
+    <button type="button" class="btn btn-finish" id="finishBtn" onclick="finishAndProceed()">
+      Selesai / Tutup Scanner
+    </button>
+    <p class="hint-subtext" id="footerHint">
+      Setelah barcode terbaca, ketuk tombol <strong>Selesai</strong> untuk kembali &amp; memproses di StokKita.
+    </p>
+  </div>
+
+  <!-- Fallback Screen if mobile browser blocks window.close() -->
+  <div id="fallbackOverlay" class="close-fallback-overlay" style="display:none;">
+    <div style="width:68px;height:68px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:36px;font-weight:900;margin-bottom:16px;box-shadow:0 0 30px rgba(16,185,129,0.6);">✓</div>
+    <h2 style="font-size:22px;font-weight:800;color:#34d399;margin-bottom:8px;">SCAN BERHASIL!</h2>
+    <div id="fallbackCodeDisplay" style="font-family:monospace;font-size:18px;font-weight:800;background:#182823;padding:8px 18px;border-radius:10px;border:1px dashed #34d399;color:#fff;margin-bottom:14px;">-</div>
+    <p style="color:#cbd5e1;font-size:14px;max-width:320px;margin-bottom:22px;line-height:1.5;">
+      Data barang telah berhasil dikirim ke aplikasi StokKita. Silakan tutup tab ini atau kembali ke aplikasi Anda.
+    </p>
+    <button type="button" class="btn-proceed" style="max-width:320px;" onclick="forceCloseOrBack()">
+      KEMBALI KE STOKKITA SEKARANG
+    </button>
   </div>
 
   <script>
@@ -5663,15 +5807,18 @@
     var html5QrCode = null;
     var currentCameraId = null;
     var cameraList = [];
-    var isSearchContext = (CONTEXT === 'stockSearch' || CONTEXT === 'productSearch' || CONTEXT === 'global' || CONTEXT === 'stockCard' || CONTEXT === 'damaged' || CONTEXT === 'productFormBarcode');
+    // Include barcodePage so it defaults to single-scan with clear proceed
+    var isSearchContext = (CONTEXT === 'stockSearch' || CONTEXT === 'productSearch' || CONTEXT === 'global' || CONTEXT === 'stockCard' || CONTEXT === 'damaged' || CONTEXT === 'productFormBarcode' || CONTEXT === 'barcodePage');
     var isContinuous = !isSearchContext;
     var lastScannedCode = '';
     var lastScannedTime = 0;
+    var totalScannedCount = 0;
+    var autoCloseTimer = null;
 
     function updateModeButtonUI() {
       var btn = document.getElementById('toggleModeBtn');
       if (btn) {
-        btn.textContent = isContinuous ? 'Multi-Scan: AKTIF' : '1x Scan (Pencarian)';
+        btn.textContent = isContinuous ? 'Multi-Scan: AKTIF' : 'Mode: 1x Scan';
       }
     }
 
@@ -5682,25 +5829,23 @@
         var gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(920, ctx.currentTime);
-        gain.gain.setValueAtTime(0.25, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.14);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.16);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.14);
+        osc.stop(ctx.currentTime + 0.16);
       } catch(e) {}
-    }
-
-    function setStatus(text, type) {
-      var badge = document.getElementById('statusBadge');
-      if (!badge) return;
-      badge.textContent = text;
-      badge.className = 'status-badge' + (type ? ' ' + type : '');
     }
 
     function toggleContinuousMode() {
       isContinuous = !isContinuous;
       updateModeButtonUI();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     function handleScanSuccess(decodedText) {
@@ -5710,24 +5855,64 @@
       }
       lastScannedCode = decodedText;
       lastScannedTime = now;
+      totalScannedCount++;
 
       playBeep();
       if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
 
-      var card = document.getElementById('scanSuccessCard');
-      var codeEl = document.getElementById('successCardCode');
-      if (card && codeEl) {
-        codeEl.textContent = decodedText;
-        card.style.display = 'flex';
+      // 1. Update Step Badge
+      var stepPill = document.getElementById('stepPill');
+      if (stepPill) {
+        stepPill.className = 'step-pill scanned';
+        stepPill.textContent = '2. BARCODE TERBACA! KETUK SELESAI';
       }
 
-      setStatus('✓ Terbaca: ' + decodedText, 'success');
+      // 2. Update Result Card
+      var card = document.getElementById('scanResultCard');
+      var icon = document.getElementById('resultIcon');
+      var label = document.getElementById('resultLabel');
+      var code = document.getElementById('resultCode');
+      var btnTop = document.getElementById('btnProceedTop');
 
+      if (card) card.className = 'scan-result-card scanned';
+      if (icon) { icon.className = 'result-icon active'; icon.textContent = '✓'; }
+      if (label) { label.className = 'result-label active'; label.textContent = 'BARANG BERHASIL DIBACA:'; }
+      if (code) { code.textContent = decodedText; }
+      if (btnTop) {
+        btnTop.style.display = 'flex';
+        btnTop.innerHTML = '<span>✓ LANJUTKAN DENGAN: ' + escapeHtml(decodedText) + '</span> <span style="font-size:18px;">&rarr;</span>';
+      }
+
+      // 3. Update Bottom Finish Button to Bright Green Luminous CTA
+      var finishBtn = document.getElementById('finishBtn');
+      if (finishBtn) {
+        finishBtn.className = 'btn btn-finish scanned';
+        finishBtn.innerHTML = '✓ SELESAI &amp; PAKAI KODE (' + escapeHtml(decodedText) + ') &rarr;';
+      }
+
+      var subPrompt = document.getElementById('subPrompt');
+      if (subPrompt) {
+        subPrompt.innerHTML = '<span style="color:#34d399;font-weight:700;">✓ Sukses membaca ' + escapeHtml(decodedText) + '!</span> Ketuk tombol hijau di bawah untuk memproses.';
+      }
+
+      // 4. Dispatch Payload immediately to StokKita
+      sendPayload(decodedText);
+
+      // 5. In single scan mode, auto-proceed after 2 seconds if user does not click
+      if (!isContinuous) {
+        if (autoCloseTimer) clearTimeout(autoCloseTimer);
+        autoCloseTimer = setTimeout(function() {
+          finishAndProceed();
+        }, 2000);
+      }
+    }
+
+    function sendPayload(code) {
       var payload = {
         type: 'STOKKITA_BARCODE_SCAN_RESULT',
-        code: decodedText,
+        code: code,
         context: CONTEXT,
-        time: now
+        time: Date.now()
       };
 
       try {
@@ -5739,15 +5924,41 @@
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       } catch(e) {}
+    }
 
-      if (!isContinuous) {
-        setTimeout(function() {
-          closeScannerWindow();
-        }, 650);
+    function finishAndProceed() {
+      if (autoCloseTimer) clearTimeout(autoCloseTimer);
+
+      if (lastScannedCode) {
+        sendPayload(lastScannedCode);
+      }
+
+      if (html5QrCode) {
+        try { html5QrCode.stop(); } catch(e) {}
+      }
+
+      // Try closing the popup/tab
+      try {
+        window.close();
+      } catch(e) {}
+
+      // If mobile browser ignores window.close(), display fallback screen after 180ms
+      setTimeout(function() {
+        var fallback = document.getElementById('fallbackOverlay');
+        var disp = document.getElementById('fallbackCodeDisplay');
+        if (fallback) {
+          if (disp) disp.textContent = lastScannedCode || 'Selesai';
+          fallback.style.display = 'flex';
+        }
+      }, 180);
+    }
+
+    function forceCloseOrBack() {
+      try { window.close(); } catch(e) {}
+      if (window.history && window.history.length > 1) {
+        window.history.back();
       } else {
-        setTimeout(function() {
-          if (card) card.style.display = 'none';
-        }, 1200);
+        window.location.href = 'about:blank';
       }
     }
 
@@ -5756,7 +5967,10 @@
       try {
         var cameras = await Html5Qrcode.getCameras();
         if (!cameras || !cameras.length) {
-          setStatus('Tidak ada kamera ditemukan pada perangkat.', 'error');
+          var label = document.getElementById('resultLabel');
+          var code = document.getElementById('resultCode');
+          if (label) label.textContent = 'KAMERA TIDAK DITEMUKAN';
+          if (code) code.textContent = 'Pastikan izin kamera telah diberikan';
           return;
         }
         cameraList = cameras;
@@ -5769,13 +5983,15 @@
         startReading(currentCameraId);
       } catch(err) {
         console.error(err);
-        setStatus('Gagal mengakses kamera: ' + (err.message || err), 'error');
+        var label = document.getElementById('resultLabel');
+        var code = document.getElementById('resultCode');
+        if (label) label.textContent = 'GAGAL MENGAKSES KAMERA';
+        if (code) code.textContent = err.message || String(err);
       }
     }
 
     function startReading(cameraId) {
       if (!html5QrCode) return;
-      setStatus('Kamera aktif. Bidik barcode / QR code barang...', '');
       html5QrCode.start(
         cameraId,
         {
@@ -5792,13 +6008,11 @@
         function(errorMessage) {}
       ).catch(function(err) {
         console.error(err);
-        setStatus('Kamera gagal dimulai: ' + err, 'error');
       });
     }
 
     async function switchCamera() {
       if (!html5QrCode || cameraList.length < 2) {
-        setStatus('Hanya 1 kamera tersedia.', '');
         return;
       }
       try {
@@ -5810,13 +6024,6 @@
       } catch(e) {
         console.error(e);
       }
-    }
-
-    function closeScannerWindow() {
-      if (html5QrCode) {
-        try { html5QrCode.stop(); } catch(e) {}
-      }
-      window.close();
     }
 
     window.addEventListener('beforeunload', function() {
