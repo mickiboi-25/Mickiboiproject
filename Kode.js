@@ -1785,13 +1785,140 @@ function deleteObsoleteSheets() {
 }
 
 // =============================================================================
-// INISIALISASI DATABASE & DATA AWAL BERSIH (TANPA DATA DEMO)
+// INISIALISASI DATABASE AMAN (DATA TIDAK AKAN TERTAMPA / TERHAPUS)
 // =============================================================================
 
+/**
+ * Inisialisasi struktur database secara AMAN TANPA MENGHAPUS / MENIMPA DATA LAMA.
+ * - Jika sheet sudah ada dan berisi data, data akan dipertahankan 100%.
+ * - Hanya sheet yang belum ada atau masih kosong yang akan dibuatkan baris headernya.
+ */
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const summary = [];
 
-  // 1. SETTINGS (Pengaturan dasar bersih)
+  // Helper untuk inisialisasi sheet secara aman
+  function ensureSheetSafe(sheetName, defaultHeaders, defaultRowsIfEmpty) {
+    if (!defaultRowsIfEmpty) defaultRowsIfEmpty = [];
+    let sheet = ss.getSheetByName(sheetName);
+    let isNew = false;
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      isNew = true;
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      // Sheet masih kosong / baru dibuat -> Pasang header dan data default jika ada
+      sheet.clear();
+      const allRows = [defaultHeaders, ...defaultRowsIfEmpty];
+      sheet.getRange(1, 1, allRows.length, defaultHeaders.length).setValues(allRows);
+      formatHeaderRow(sheet, defaultHeaders.length);
+      summary.push(`[BARU] Sheet ${sheetName} diinisialisasi (${defaultRowsIfEmpty.length} baris default).`);
+    } else {
+      // Sheet SUDAH BERISI DATA -> JANGAN HAPUS ATAU TIMPA!
+      summary.push(`[AMAN] Sheet ${sheetName} sudah berisi ${lastRow - 1} baris data. Data dipertahankan utuh.`);
+    }
+    return sheet;
+  }
+
+  // 1. SETTINGS
+  let setSheet = ss.getSheetByName(SHEET_NAMES.SETTINGS);
+  if (!setSheet || setSheet.getLastRow() <= 1) {
+    writeSettingsSheet(ss, {
+      businessName: 'StokKita Inventori',
+      phone: '',
+      address: '',
+      timezone: 'Asia/Jakarta (WIB)',
+      rejectNegativeStock: true,
+      autoLogoutEnabled: true,
+      autoLogoutMinutes: 15
+    });
+    summary.push(`[BARU] Sheet SETTINGS diinisialisasi.`);
+  } else {
+    summary.push(`[AMAN] Sheet SETTINGS sudah ada. Data pengaturan dipertahankan.`);
+  }
+
+  // 2. CATEGORIES
+  ensureSheetSafe(SHEET_NAMES.CATEGORIES, ['id', 'code', 'name', 'description']);
+
+  // 3. WAREHOUSES
+  const defaultWarehouses = [
+    ['W01', 'GDG-01', 'Gudang Utama', '', true]
+  ];
+  ensureSheetSafe(SHEET_NAMES.WAREHOUSES, ['id', 'code', 'name', 'address', 'active'], defaultWarehouses);
+
+  // 4. PRODUCTS
+  let prodSheet = ss.getSheetByName(SHEET_NAMES.PRODUCTS);
+  if (!prodSheet || prodSheet.getLastRow() <= 1) {
+    const defaultWhObj = [{ id: 'W01', code: 'GDG-01', name: 'Gudang Utama', address: '', active: true }];
+    writeProductsSheet(ss, [], defaultWhObj);
+    summary.push(`[BARU] Sheet PRODUCTS diinisialisasi.`);
+  } else {
+    summary.push(`[AMAN] Sheet PRODUCTS sudah berisi ${prodSheet.getLastRow() - 1} barang. Data dipertahankan utuh.`);
+  }
+
+  // 5. USERS
+  const defaultUsers = [
+    ['U01', 'admin', 'ADM', 'Administrator', 'ADMIN', 'Semua Gudang', 'admin', true, '']
+  ];
+  ensureSheetSafe(SHEET_NAMES.USERS, ['id', 'username', 'code', 'name', 'role', 'warehouse', 'password', 'active', 'lastLogin'], defaultUsers);
+
+  // 6. BARANG_MASUK
+  ensureSheetSafe(SHEET_NAMES.TRANSACTIONS_IN, ['id', 'transaction_no', 'date', 'warehouse', 'supplier', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto']);
+
+  // 7. BARANG_KELUAR
+  ensureSheetSafe(SHEET_NAMES.TRANSACTIONS_OUT, ['id', 'transaction_no', 'date', 'warehouse', 'customer', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto']);
+
+  // 8. TRANSFERS
+  ensureSheetSafe(SHEET_NAMES.TRANSFERS, ['id', 'transaction_no', 'date', 'fromWarehouse', 'toWarehouse', 'refNo', 'status', 'user', 'notes', 'sku', 'nama_barang', 'qty', 'satuan']);
+
+  // 9. STOK_OPNAME
+  ensureSheetSafe(SHEET_NAMES.OPNAMES, ['id', 'transaction_no', 'date', 'warehouse', 'user', 'notes', 'sku', 'nama_barang', 'stok_sistem', 'stok_fisik', 'selisih', 'satuan']);
+
+  // 10. DAMAGED_ITEMS
+  ensureSheetSafe(SHEET_NAMES.DAMAGED_ITEMS, ['id', 'transaction_no', 'date', 'warehouse', 'productId', 'productName', 'sku', 'qty', 'unit', 'issueType', 'action', 'refNo', 'status', 'notes', 'user', 'foto']);
+
+  // 11. STOCK_LEDGER
+  ensureSheetSafe(SHEET_NAMES.STOCK_LEDGER, ['id', 'date', 'productId', 'warehouse', 'type', 'qty', 'balanceAfter', 'refNo', 'user', 'notes']);
+
+  // 12. AUDIT_LOGS
+  ensureSheetSafe(SHEET_NAMES.AUDIT_LOGS, ['id', 'time', 'user', 'action', 'entity', 'ref', 'description']);
+
+  // Hapus "Sheet1" kosong bawaan spreadsheet jika ada sheet lain
+  ['Sheet1', 'Sheet 1'].forEach(oldName => {
+    const s = ss.getSheetByName(oldName);
+    if (s && ss.getSheets().length > 1 && s.getLastRow() <= 1) {
+      try { ss.deleteSheet(s); } catch (e) {}
+    }
+  });
+
+  const report = summary.join('\n');
+  Logger.log('=== HASIL SETUP DATABASE (AMAN) ===\n' + report);
+  return report;
+}
+
+/**
+ * Backup seluruh database ke file spreadsheet baru di Google Drive sebelum melakukan perubahan.
+ */
+function backupDatabase() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const timeStr = Utilities.formatDate(new Date(), 'GMT+7', 'yyyyMMdd_HHmm');
+  const backupName = `BACKUP_STOKKITA_${timeStr}_${ss.getName()}`;
+  const copy = ss.copy(backupName);
+  const msg = `Backup database berhasil dibuat! Tersimpan di Google Drive dengan nama: "${backupName}" (ID: ${copy.getId()})`;
+  Logger.log(msg);
+  return msg;
+}
+
+/**
+ * PERINGATAN: FUNGSI INI MENGHAPUS SELURUH DATA SPREADSHEET (FACTORY RESET)!
+ * Hanya jalankan jika Anda benar-benar ingin mengosongkan seluruh isi data.
+ */
+function resetDatabaseTotalBersih_HATI_HATI() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. SETTINGS
   writeSettingsSheet(ss, {
     businessName: 'StokKita Inventori',
     phone: '',
@@ -1802,47 +1929,47 @@ function setupDatabase() {
     autoLogoutMinutes: 15
   });
 
-  // 2. CATEGORIES (Kosong / Hanya Baris Header)
+  // 2. CATEGORIES
   writeTableSheet(ss, SHEET_NAMES.CATEGORIES, [], ['id', 'code', 'name', 'description']);
 
-  // 3. WAREHOUSES (1 Gudang Utama default bersih)
+  // 3. WAREHOUSES
   const defaultWarehouses = [
     { id: 'W01', code: 'GDG-01', name: 'Gudang Utama', address: '', active: true }
   ];
   writeTableSheet(ss, SHEET_NAMES.WAREHOUSES, defaultWarehouses, ['id', 'code', 'name', 'address', 'active']);
 
-  // 4. PRODUCTS (Kosong / Hanya Baris Header dengan Kolom Gudang Utama)
+  // 4. PRODUCTS
   writeProductsSheet(ss, [], defaultWarehouses);
 
-  // 5. USERS (Hanya 1 Akun Administrator Default)
+  // 5. USERS
   const defaultUsers = [
     { id: 'U01', username: 'admin', code: 'ADM', name: 'Administrator', role: 'ADMIN', warehouse: 'Semua Gudang', password: 'admin', active: true, lastLogin: '' }
   ];
   writeTableSheet(ss, SHEET_NAMES.USERS, defaultUsers, ['id', 'username', 'code', 'name', 'role', 'warehouse', 'password', 'active', 'lastLogin']);
 
-  // 6. TRANSAKSI BARANG MASUK (BARANG_MASUK - Kosong / Hanya Baris Header)
+  // 6. BARANG_MASUK
   writeTransactionsInSheet(ss, []);
 
-  // 7. TRANSAKSI BARANG KELUAR (BARANG_KELUAR - Kosong / Hanya Baris Header)
+  // 7. BARANG_KELUAR
   writeTransactionsOutSheet(ss, []);
 
-  // 8. TRANSFERS (Kosong / Hanya Baris Header)
+  // 8. TRANSFERS
   writeTransfersSheet(ss, []);
 
-  // 9. STOK_OPNAME (Kosong / Hanya Baris Header)
+  // 9. STOK_OPNAME
   writeOpnamesSheet(ss, []);
 
-  // 10. DAMAGED_ITEMS (Kosong / Hanya Baris Header)
+  // 10. DAMAGED_ITEMS
   writeTableSheet(ss, SHEET_NAMES.DAMAGED_ITEMS, [], [
     'id', 'transaction_no', 'date', 'warehouse', 'productId', 'productName', 'sku', 'qty', 'unit', 'issueType', 'action', 'refNo', 'status', 'notes', 'user', 'foto'
   ]);
 
-  // 11. STOCK_LEDGER (Kosong / Hanya Baris Header)
+  // 11. STOCK_LEDGER
   writeTableSheet(ss, SHEET_NAMES.STOCK_LEDGER, [], [
     'id', 'date', 'productId', 'warehouse', 'type', 'qty', 'balanceAfter', 'refNo', 'user', 'notes'
   ]);
 
-  // 12. AUDIT_LOGS (Kosong / Hanya Baris Header)
+  // 12. AUDIT_LOGS
   writeTableSheet(ss, SHEET_NAMES.AUDIT_LOGS, [], ['id', 'time', 'user', 'action', 'entity', 'ref', 'description']);
 
   // Hapus "Sheet1" dan sheet-sheet lama jika ada
@@ -1852,6 +1979,8 @@ function setupDatabase() {
       try { ss.deleteSheet(s); } catch (e) {}
     }
   });
+
+  return 'Database berhasil direset bersih ke pengaturan pabrik.';
 }
 
 // =============================================================================
