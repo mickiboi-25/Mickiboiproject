@@ -1832,7 +1832,9 @@ function setupDatabase() {
       timezone: 'Asia/Jakarta (WIB)',
       rejectNegativeStock: true,
       autoLogoutEnabled: true,
-      autoLogoutMinutes: 15
+      autoLogoutMinutes: 15,
+      geminiApiKey: '',
+      geminiModel: 'gemini-2.5-flash'
     });
     summary.push(`[BARU] Sheet SETTINGS diinisialisasi.`);
   } else {
