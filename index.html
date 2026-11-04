@@ -4927,6 +4927,10 @@
         barcodeLabelHeight: 48,
         barcodeLabelQty: 1,
         barcodeSearchQuery: '',
+        aiMessages: [],
+        aiLoading: false,
+        aiCategoryFilter: 'all',
+        aiWarehouseFilter: 'Semua Gudang',
         theme: localStorage.getItem('stokkita_theme') || 'light'
       };
 
@@ -5055,6 +5059,375 @@
         const d = new Date();
         const pad = n => String(n).padStart(2, '0');
         return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}.${pad(d.getMinutes())}`;
+      }
+
+      // ==============================================================================
+      // ASISTEN AI STOKKITA: SMART DATA CONTEXT & LOCAL ANALYSIS
+      // ==============================================================================
+      function getEffectiveAiWarehouse(requestedWarehouse = null) {
+        if (state.currentUser && state.currentUser.role === 'STAFF') {
+          return getStaffAssignedWarehouse();
+        }
+        return requestedWarehouse || state.aiWarehouseFilter || 'Semua Gudang';
+      }
+
+      function buildInventoryContext(requestedWarehouse = null) {
+        const wh = getEffectiveAiWarehouse(requestedWarehouse);
+        const products = (store.products || []).filter(p => p.active !== false);
+        const warehouses = store.warehouses || [];
+        const isStaff = state.currentUser && state.currentUser.role === 'STAFF';
+
+        let totalItems = products.length;
+        let totalPhysicalQty = 0;
+        const outOfStock = [];
+        const lowStock = [];
+
+        products.forEach(p => {
+          const qty = totalStock(p, wh);
+          totalPhysicalQty += Math.max(0, qty);
+          const minVal = getProductMin(p);
+          if (qty <= 0) {
+            outOfStock.push({ sku: p.sku, name: p.name, qty, unit: p.unit || 'Pcs' });
+          } else if (minVal > 0 && qty <= minVal) {
+            lowStock.push({ sku: p.sku, name: p.name, qty, min: minVal, unit: p.unit || 'Pcs' });
+          }
+        });
+
+        const now = Date.now();
+        const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+        const outItemsMap = {};
+        const inItemsMap = {};
+        const outPartyMap = {};
+        const inPartyMap = {};
+
+        const relevantTx = (store.transactions || []).filter(t => {
+          if (wh !== 'Semua Gudang' && t.warehouse !== wh) return false;
+          const time = parseDateTimeToSort(t.date);
+          return time >= thirtyDaysAgo;
+        });
+
+        relevantTx.forEach(t => {
+          const typeLower = (t.type || '').toLowerCase();
+          const isOut = typeLower.includes('keluar');
+          const isIn = typeLower.includes('masuk');
+          const party = (t.party || '').trim();
+
+          if (isOut && party) outPartyMap[party] = (outPartyMap[party] || 0) + (Number(t.qty) || 0);
+          if (isIn && party) inPartyMap[party] = (inPartyMap[party] || 0) + (Number(t.qty) || 0);
+
+          const items = Array.isArray(t.details) && t.details.length > 0 ? t.details : [{
+            sku: t.productId || t.sku || '',
+            name: t.product || t.name || 'Barang',
+            qty: Number(t.qty) || 0,
+            unit: t.unit || 'Pcs'
+          }];
+
+          items.forEach(item => {
+            const qtyNum = Number(item.qty) || 0;
+            const key = item.sku || item.name;
+            if (!key) return;
+
+            if (isOut) {
+              if (!outItemsMap[key]) outItemsMap[key] = { sku: item.sku || '-', name: item.name, qty: 0, unit: item.unit || 'Pcs' };
+              outItemsMap[key].qty += qtyNum;
+            } else if (isIn) {
+              if (!inItemsMap[key]) inItemsMap[key] = { sku: item.sku || '-', name: item.name, qty: 0, unit: item.unit || 'Pcs' };
+              inItemsMap[key].qty += qtyNum;
+            }
+          });
+        });
+
+        const topOut = Object.values(outItemsMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
+        const topIn = Object.values(inItemsMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
+        const topCustomers = Object.entries(outPartyMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const topSuppliers = Object.entries(inPartyMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+        const recentTx = (store.transactions || [])
+          .filter(t => wh === 'Semua Gudang' || t.warehouse === wh)
+          .slice(-10)
+          .reverse()
+          .map(t => {
+            const itemSummary = Array.isArray(t.details) && t.details.length > 0
+              ? t.details.map(d => `${d.name} (${d.qty})`).join(', ')
+              : `${t.product || 'Item'} (${t.qty || 0})`;
+            return `- [${t.date || '-'}] ${t.type || 'TRX'} di ${t.warehouse || '-'}: ${itemSummary} (Oleh: ${t.user || 'Staf'})`;
+          });
+
+        const warehouseSummary = (!isStaff && wh === 'Semua Gudang')
+          ? warehouses.map(w => {
+              const whTotal = products.reduce((acc, p) => acc + (Number(p.stocks && p.stocks[w.name]) || 0), 0);
+              return `${w.name}: ${whTotal.toLocaleString('id-ID')} unit`;
+            }).join(' | ')
+          : `Gudang: ${wh} (${totalPhysicalQty.toLocaleString('id-ID')} unit)`;
+
+        return `Anda adalah Asisten AI Analis Inventori Profesional untuk sistem StokKita.
+Analisis data inventori berikut dan jawab pertanyaan pengguna secara ramah, faktual, terstruktur (gunakan poin/tabel markdown jika relevan), dan bahasa Indonesia yang profesional. Jangan mengarang angka di luar data ini.
+
+=== KONTEKS DATA INVENTORI TERKINI ===
+Waktu: ${getNowFormatted()}
+Lingkup Gudang: ${wh} ${isStaff ? '(Peran: Staf Gudang - Dibatasi khusus gudang tugas)' : '(Peran: Administrator - Seluruh Gudang)'}
+
+[RINGKASAN STOK]
+- Total Master Produk: ${totalItems} SKU
+- Total Fisik Stok: ${totalPhysicalQty.toLocaleString('id-ID')} unit
+- Sebaran: ${warehouseSummary}
+
+[STATUS KRITIS]
+- Stok Habis (0 unit): ${outOfStock.length} barang ${outOfStock.length > 0 ? '(' + outOfStock.slice(0, 5).map(p => `${p.name} [${p.sku}]`).join(', ') + (outOfStock.length > 5 ? '... dsb' : '') + ')' : '(Nihil)'}
+- Stok Menipis (<= batas minimum): ${lowStock.length} barang ${lowStock.length > 0 ? '(' + lowStock.slice(0, 5).map(p => `${p.name}: sisa ${p.qty} ${p.unit}, min ${p.min}`).join(', ') + (lowStock.length > 5 ? '... dsb' : '') + ')' : '(Nihil)'}
+
+[BARANG KELUAR TERBANYAK (30 HARI TERAKHIR)]
+${topOut.length > 0 ? topOut.map((p, idx) => `${idx + 1}. ${p.name} [${p.sku}]: ${p.qty.toLocaleString('id-ID')} ${p.unit}`).join('\n') : '- Belum ada data pengeluaran 30 hari terakhir.'}
+${topCustomers.length > 0 ? 'Tujuan/Customer Utama: ' + topCustomers.map(([c, q]) => `${c} (${q} unit)`).join(', ') : ''}
+
+[BARANG MASUK TERBANYAK (30 HARI TERAKHIR)]
+${topIn.length > 0 ? topIn.map((p, idx) => `${idx + 1}. ${p.name} [${p.sku}]: ${p.qty.toLocaleString('id-ID')} ${p.unit}`).join('\n') : '- Belum ada data penerimaan 30 hari terakhir.'}
+${topSuppliers.length > 0 ? 'Supplier Utama: ' + topSuppliers.map(([s, q]) => `${s} (${q} unit)`).join(', ') : ''}
+
+[10 MUTASI TRANSAKSI TERAKHIR]
+${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
+======================================`;
+      }
+
+      function runLocalInventoryAnalysis(chipId, requestedWarehouse = null) {
+        const wh = getEffectiveAiWarehouse(requestedWarehouse);
+        const products = (store.products || []).filter(p => p.active !== false);
+        const now = Date.now();
+        const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+
+        // Agregasi mutasi 30 hari
+        const outItemsMap = {};
+        const inItemsMap = {};
+        const outPartyMap = {};
+        const inPartyMap = {};
+
+        const relevantTx = (store.transactions || []).filter(t => {
+          if (wh !== 'Semua Gudang' && t.warehouse !== wh) return false;
+          const time = parseDateTimeToSort(t.date);
+          return time >= thirtyDaysAgo;
+        });
+
+        relevantTx.forEach(t => {
+          const typeLower = (t.type || '').toLowerCase();
+          const isOut = typeLower.includes('keluar');
+          const isIn = typeLower.includes('masuk');
+          const party = (t.party || '').trim();
+
+          if (isOut && party) outPartyMap[party] = (outPartyMap[party] || 0) + (Number(t.qty) || 0);
+          if (isIn && party) inPartyMap[party] = (inPartyMap[party] || 0) + (Number(t.qty) || 0);
+
+          const items = Array.isArray(t.details) && t.details.length > 0 ? t.details : [{
+            sku: t.productId || t.sku || '',
+            name: t.product || t.name || 'Barang',
+            qty: Number(t.qty) || 0,
+            unit: t.unit || 'Pcs'
+          }];
+
+          items.forEach(item => {
+            const qtyNum = Number(item.qty) || 0;
+            const key = item.sku || item.name;
+            if (!key) return;
+
+            if (isOut) {
+              if (!outItemsMap[key]) outItemsMap[key] = { sku: item.sku || '-', name: item.name, qty: 0, unit: item.unit || 'Pcs' };
+              outItemsMap[key].qty += qtyNum;
+            } else if (isIn) {
+              if (!inItemsMap[key]) inItemsMap[key] = { sku: item.sku || '-', name: item.name, qty: 0, unit: item.unit || 'Pcs' };
+              inItemsMap[key].qty += qtyNum;
+            }
+          });
+        });
+
+        const topOut = Object.values(outItemsMap).sort((a, b) => b.qty - a.qty);
+        const topIn = Object.values(inItemsMap).sort((a, b) => b.qty - a.qty);
+        const topCustomers = Object.entries(outPartyMap).sort((a, b) => b[1] - a[1]);
+        const topSuppliers = Object.entries(inPartyMap).sort((a, b) => b[1] - a[1]);
+
+        if (chipId === 'top-out') {
+          if (topOut.length === 0) {
+            return `### 📤 Analisis Barang Keluar Terbanyak (30 Hari Terakhir)\n\nBelum ada transaksi barang keluar tercatat dalam 30 hari terakhir di **${wh}**.\n\n*Tips: Pastikan setiap pengeluaran dicatat melalui menu Barang Keluar agar perputaran stok dapat dianalisis secara optimal.*`;
+          }
+          let res = `### 📤 5 Barang Paling Banyak Keluar (30 Hari Terakhir)\n*Lingkup: **${wh}***\n\n`;
+          res += `| No | SKU | Nama Barang | Total Keluar | Satuan |\n|---|---|---|---|---|\n`;
+          topOut.slice(0, 5).forEach((item, idx) => {
+            res += `| ${idx + 1} | \`${item.sku}\` | **${item.name}** | ${item.qty.toLocaleString('id-ID')} | ${item.unit} |\n`;
+          });
+          if (topCustomers.length > 0) {
+            res += `\n**Tujuan / Pelanggan Terbanyak:**\n`;
+            topCustomers.slice(0, 3).forEach(([c, q], i) => {
+              res += `- ${i + 1}. **${c}**: ${q.toLocaleString('id-ID')} unit\n`;
+            });
+          }
+          res += `\n💡 **Rekomendasi Analis:** Barang di atas merupakan produk dengan perputaran tercepat (*fast-moving*). Pastikan *safety stock* terjaga dan pantau jadwal pemesanan ulang dari pemasok agar terhindar dari potensi *stockout*.`;
+          return res;
+        }
+
+        if (chipId === 'top-in') {
+          if (topIn.length === 0) {
+            return `### 📥 Analisis Penerimaan Barang Masuk (30 Hari Terakhir)\n\nBelum ada transaksi penerimaan barang masuk dalam 30 hari terakhir di **${wh}**.`;
+          }
+          let res = `### 📥 5 Barang Paling Banyak Masuk (30 Hari Terakhir)\n*Lingkup: **${wh}***\n\n`;
+          res += `| No | SKU | Nama Barang | Total Masuk | Satuan |\n|---|---|---|---|---|\n`;
+          topIn.slice(0, 5).forEach((item, idx) => {
+            res += `| ${idx + 1} | \`${item.sku}\` | **${item.name}** | ${item.qty.toLocaleString('id-ID')} | ${item.unit} |\n`;
+          });
+          if (topSuppliers.length > 0) {
+            res += `\n**Pemasok / Supplier Terbesar:**\n`;
+            topSuppliers.slice(0, 3).forEach(([s, q], i) => {
+              res += `- ${i + 1}. **${s}**: ${q.toLocaleString('id-ID')} unit\n`;
+            });
+          }
+          res += `\n💡 **Rekomendasi Analis:** Pastikan barang masuk yang baru diterima sudah diperiksa kondisi fisiknya dan lakukan pencocokan berkala melalui fitur Stok Opname.`;
+          return res;
+        }
+
+        if (chipId === 'low-stock') {
+          const outOfStock = [];
+          const lowStock = [];
+
+          products.forEach(p => {
+            const qty = totalStock(p, wh);
+            const minVal = getProductMin(p);
+            if (qty <= 0) {
+              outOfStock.push({ sku: p.sku, name: p.name, qty, unit: p.unit || 'Pcs', min: minVal });
+            } else if (minVal > 0 && qty <= minVal) {
+              outOfStock.push ? lowStock.push({ sku: p.sku, name: p.name, qty, unit: p.unit || 'Pcs', min: minVal }) : null;
+            }
+          });
+
+          if (outOfStock.length === 0 && lowStock.length === 0) {
+            return `### 🟢 Status Stok: Semua Produk Aman!\n*Lingkup: **${wh}***\n\nSaat ini tidak ada produk yang habis maupun yang berada di bawah batas minimum stok. Seluruh inventori berstatus aman.`;
+          }
+
+          let res = `### ⚠️ Peringatan Stok Menipis & Habis\n*Lingkup: **${wh}***\n\n`;
+          if (outOfStock.length > 0) {
+            res += `🔴 **STOK HABIS (0 UNIT) — PERLU RESTOCK SEGERA:**\n`;
+            res += `| SKU | Nama Barang | Sisa | Batas Min | Saran Pesan |\n|---|---|---|---|---|\n`;
+            outOfStock.forEach(p => {
+              const suggested = Math.max(10, (p.min || 5) * 2);
+              res += `| \`${p.sku}\` | **${p.name}** | 0 ${p.unit} | ${p.min || 0} ${p.unit} | +${suggested} ${p.unit} |\n`;
+            });
+            res += `\n`;
+          }
+
+          if (lowStock.length > 0) {
+            res += `🟡 **STOK MENIPIS (DI BAWAH BATAS MINIMUM):**\n`;
+            res += `| SKU | Nama Barang | Sisa | Batas Min | Status |\n|---|---|---|---|---|\n`;
+            lowStock.forEach(p => {
+              res += `| \`${p.sku}\` | **${p.name}** | ${p.qty} ${p.unit} | ${p.min} ${p.min ? p.unit : ''} | ⚠️ Menipis |\n`;
+            });
+          }
+
+          res += `\n💡 **Tindakan:** Segera buat Purchase Order (PO) atau catat penerimaan Barang Masuk untuk SKU di atas sebelum pesanan pelanggan tertunda.`;
+          return res;
+        }
+
+        if (chipId === 'stock-health') {
+          let totalQty = 0;
+          let safeCount = 0;
+          let warningCount = 0;
+          let dangerCount = 0;
+
+          products.forEach(p => {
+            const qty = totalStock(p, wh);
+            totalQty += Math.max(0, qty);
+            const [st] = stockState(p, wh);
+            if (st === 'Habis') dangerCount++;
+            else if (st === 'Menipis') warningCount++;
+            else safeCount++;
+          });
+
+          const totalProds = products.length || 1;
+          const safePct = Math.round((safeCount / totalProds) * 100);
+          const warnPct = Math.round((warningCount / totalProds) * 100);
+          const dangPct = Math.round((dangerCount / totalProds) * 100);
+
+          let healthStatus = '🟢 Sangat Sehat';
+          if (dangPct > 15 || warnPct > 30) healthStatus = '🔴 Kritis — Butuh Restock';
+          else if (dangPct > 0 || warnPct > 10) healthStatus = '🟡 Waspada — Beberapa Item Menipis';
+
+          let res = `### 📋 Laporan Eksekutif Kesehatan Stok\n*Lingkup: **${wh}***\n\n`;
+          res += `- **Status Keseluruhan:** **${healthStatus}**\n`;
+          res += `- **Total Jenis Barang (SKU):** ${products.length} produk\n`;
+          res += `- **Total Fisik Unit:** ${totalQty.toLocaleString('id-ID')} unit\n\n`;
+
+          res += `**Proporsi Saldo Inventori:**\n`;
+          res += `- 🟢 Aman: **${safeCount} SKU** (${safePct}%)\n`;
+          res += `- 🟡 Menipis: **${warningCount} SKU** (${warnPct}%)\n`;
+          res += `- 🔴 Habis: **${dangerCount} SKU** (${dangPct}%)\n\n`;
+
+          if (wh === 'Semua Gudang' && store.warehouses && store.warehouses.length > 1) {
+            res += `**Saldo Fisik Per Gudang:**\n`;
+            store.warehouses.forEach(w => {
+              const whSum = products.reduce((sum, p) => sum + (Number(p.stocks && p.stocks[w.name]) || 0), 0);
+              res += `- 🏢 **${w.name}:** ${whSum.toLocaleString('id-ID')} unit\n`;
+            });
+          }
+
+          return res;
+        }
+
+        if (chipId === 'recent-movements') {
+          const recent = (store.transactions || [])
+            .filter(t => wh === 'Semua Gudang' || t.warehouse === wh)
+            .slice(-10)
+            .reverse();
+
+          if (recent.length === 0) {
+            return `### 🔄 Riwayat Mutasi Terbaru\n\nBelum ada transaksi mutasi tercatat di **${wh}**.`;
+          }
+
+          let res = `### 🔄 10 Transaksi Mutasi Terakhir\n*Lingkup: **${wh}***\n\n`;
+          res += `| Waktu | Tipe Transaksi | Barang / Item | Gudang | Petugas |\n|---|---|---|---|---|\n`;
+          recent.forEach(t => {
+            const itemSummary = Array.isArray(t.details) && t.details.length > 0
+              ? t.details.map(d => `${d.name} (${d.qty})`).join(', ')
+              : `${t.product || 'Item'} (${t.qty || 0})`;
+            res += `| ${t.date || '-'} | **${t.type || 'TRX'}** | ${itemSummary} | ${t.warehouse || '-'} | ${t.user || 'Staf'} |\n`;
+          });
+          return res;
+        }
+
+        if (chipId === 'dead-stock') {
+          const movedSkus = new Set();
+          (store.transactions || []).forEach(t => {
+            const time = parseDateTimeToSort(t.date);
+            if (time >= thirtyDaysAgo && (t.type || '').toLowerCase().includes('keluar')) {
+              if (Array.isArray(t.details)) {
+                t.details.forEach(d => { if (d.sku) movedSkus.add(d.sku); });
+              }
+              if (t.productId) movedSkus.add(t.productId);
+            }
+          });
+
+          const slowItems = products.filter(p => {
+            const qty = totalStock(p, wh);
+            return qty > 0 && !movedSkus.has(p.sku);
+          });
+
+          if (slowItems.length === 0) {
+            return `### 💡 Analisis Dead Stock (Barang Lambat Bergerak)\n*Lingkup: **${wh}***\n\n🟢 **Hebat!** Seluruh produk yang memiliki saldo stok aktif pernah mengalami pergerakan transaksi keluar dalam 30 hari terakhir.`;
+          }
+
+          let res = `### 💡 Analisis Dead Stock / Slow Moving (30 Hari Terakhir)\n*Lingkup: **${wh}***\n\nDitemukan **${slowItems.length} produk** dengan saldo stok tetapi **tidak pernah keluar** dalam 30 hari terakhir:\n\n`;
+          res += `| No | SKU | Nama Barang | Saldo Mengendap | Satuan |\n|---|---|---|---|---|\n`;
+          slowItems.slice(0, 8).forEach((p, idx) => {
+            res += `| ${idx + 1} | \`${p.sku}\` | **${p.name}** | ${totalStock(p, wh).toLocaleString('id-ID')} | ${p.unit || 'Pcs'} |\n`;
+          });
+          res += `\n💡 **Saran:** Pertimbangkan program bundling, promosi cuci gudang, atau redistribusi ke cabang lain untuk mencegah dana modal usaha mengendap.`;
+          return res;
+        }
+
+        // Default Fallback
+        const totalProds = products.length;
+        const totalQty = products.reduce((acc, p) => acc + totalStock(p, wh), 0);
+        return `Halo! Saya adalah **Asisten AI StokKita** 🤖\n\n` +
+          `Saat ini sistem berada dalam **Mode Analisis Data Lokal**.\n\n` +
+          `**Ringkasan Cepat Inventori Anda (${wh}):**\n` +
+          `- Total Terdaftar: **${totalProds} SKU**\n` +
+          `- Total Fisik Stok: **${totalQty.toLocaleString('id-ID')} unit**\n\n` +
+          `*💡 Untuk mengaktifkan percakapan bebas dan kecerdasan analisis generatif dari Google Gemini, silakan tambahkan API Key gratis Anda pada tab Pengaturan.*\n\n` +
+          `Silakan klik salah satu tombol pertanyaan di atas untuk melihat analisis instan!`;
       }
 
       function addAuditLog(action, entity, ref, description) {
