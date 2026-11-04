@@ -4589,6 +4589,12 @@
       <section class="content" id="appContent" aria-live="polite"></section>
     </main>
 
+    <!-- Floating Action Button: Quick Assistant AI -->
+    <button type="button" class="ai-floating-fab" id="aiFloatingBtn" data-route="aichat" title="Tanya Asisten AI StokKita" aria-label="Tanya AI Stok">
+      <svg class="icon" style="width:18px;height:18px" aria-hidden="true"><use href="#i-sparkles"/></svg>
+      <span>Tanya AI Stok</span>
+    </button>
+
     <nav class="mobile-bottom-nav" id="bottomNav" aria-label="Navigasi ponsel"></nav>
   </div>
 
@@ -11172,6 +11178,10 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
           audit: auditPage, settings: settingsPage, history: historyPage, aichat: aiChatPage
         };
         document.getElementById('appContent').innerHTML = (pages[state.route] || dashboardPage)();
+        const aiFab = document.getElementById('aiFloatingBtn');
+        if (aiFab) {
+          aiFab.style.display = (state.isLoggedIn && state.route !== 'aichat') ? 'inline-flex' : 'none';
+        }
         window.scrollTo({ top: 0, behavior: 'instant' });
       }
 
@@ -17320,6 +17330,8 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
             renderLoginScreen();
           }
           if (shellEl) shellEl.style.display = 'none';
+          const aiFab = document.getElementById('aiFloatingBtn');
+          if (aiFab) aiFab.style.display = 'none';
           return;
         }
 
@@ -17347,6 +17359,12 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
         const pageRenderer = pages[state.route] || dashboardPage;
         document.getElementById('appContent').innerHTML = pageRenderer();
         updateThemeToggleIcons();
+
+        const aiFab = document.getElementById('aiFloatingBtn');
+        if (aiFab) {
+          aiFab.style.display = (state.isLoggedIn && state.route !== 'aichat') ? 'inline-flex' : 'none';
+        }
+
         window.scrollTo({ top: 0, behavior: 'instant' });
       }
 
