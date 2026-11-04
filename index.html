@@ -5430,6 +5430,120 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
           `Silakan klik salah satu tombol pertanyaan di atas untuk melihat analisis instan!`;
       }
 
+      async function callGeminiAPI(userQuery, options = {}) {
+        const apiKey = (store.settings && store.settings.geminiApiKey ? store.settings.geminiApiKey.trim() : '');
+        let model = (store.settings && store.settings.geminiModel ? store.settings.geminiModel.trim() : 'gemini-2.5-flash') || 'gemini-2.5-flash';
+
+        // 1. Jika API Key belum terkonfigurasi, alihkan ke fallback lokal jika query cocok dengan chip, atau beri panduan
+        if (!apiKey) {
+          if (options.chipId) {
+            return runLocalInventoryAnalysis(options.chipId, options.warehouse);
+          }
+          return runLocalInventoryAnalysis('default', options.warehouse);
+        }
+
+        // 2. Susun system instruction & dynamic context
+        const contextText = buildInventoryContext(options.warehouse);
+        const systemInstruction = {
+          parts: [{ text: contextText }]
+        };
+
+        // 3. Susun riwayat multi-turn (sliding window: 6 pesan terakhir)
+        const historyContents = [];
+        const rawHistory = (state.aiMessages || []).slice(-6);
+        rawHistory.forEach(msg => {
+          if (!msg.text || msg.isError) return;
+          historyContents.push({
+            role: msg.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.text }]
+          });
+        });
+
+        // Tambahkan query terkini pengguna
+        historyContents.push({
+          role: 'user',
+          parts: [{ text: userQuery }]
+        });
+
+        const requestBody = {
+          systemInstruction,
+          contents: historyContents,
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1200
+          }
+        };
+
+        // 4. Eksekusi request ke Gemini REST API dengan mekanisme fallback model otomatis
+        async function fetchWithModel(targetModel) {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          });
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            const err = new Error((data && data.error && data.error.message) || `HTTP error ${response.status}`);
+            err.status = response.status;
+            err.data = data;
+            throw err;
+          }
+
+          const candidates = data.candidates;
+          if (!candidates || candidates.length === 0 || !candidates[0].content || !candidates[0].content.parts || !candidates[0].content.parts[0].text) {
+            throw new Error('Tidak ada respon teks yang diterima dari Gemini API.');
+          }
+
+          return candidates[0].content.parts[0].text;
+        }
+
+        try {
+          return await fetchWithModel(model);
+        } catch (err) {
+          console.warn('Gemini API Error (' + model + '):', err);
+
+          // Jika model 2.5-flash gagal dengan status 404/400 (model belum tersedia), coba otomatis fallback ke gemini-1.5-flash
+          if ((err.status === 404 || err.status === 400) && model !== 'gemini-1.5-flash') {
+            try {
+              console.log('Mencoba fallback ke model gemini-1.5-flash...');
+              return await fetchWithModel('gemini-1.5-flash');
+            } catch (fallbackErr) {
+              err = fallbackErr;
+            }
+          }
+
+          // Error handling yang ramah pengguna
+          if (err.status === 400 || err.status === 403) {
+            return `❌ **Google Gemini API Key Tidak Valid atau Ditolak (HTTP ${err.status})**\n\n` +
+                   `Pesan: *${err.message}*\n\n` +
+                   `**Langkah Perbaikan:**\n` +
+                   `1. Pastikan API Key yang dimasukkan di tab **Pengaturan** sudah benar.\n` +
+                   `2. Anda dapat membuat API Key gratis baru di [Google AI Studio](https://aistudio.google.com/app/apikey).\n\n` +
+                   `*Sementara itu, Anda tetap dapat mengklik tombol rekomendasi di atas untuk menggunakan **Analisis Lokal StokKita**.*`;
+          }
+
+          if (err.status === 429) {
+            return `⏳ **Batas Kuota Gemini API Tercapai (HTTP 429)**\n\n` +
+                   `Batas permintaan gratis per menit telah terlampaui. Silakan tunggu sekitar 1 menit sebelum mengirim pertanyaan lagi.\n\n` +
+                   `*Tips: Anda tetap dapat melihat data mutasi melalui tombol rekomendasi pertanyaan instan.*`;
+          }
+
+          // Jika offline atau network error
+          const msg = String(err.message || '');
+          if (!navigator.onLine || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            const localFallback = options.chipId ? runLocalInventoryAnalysis(options.chipId, options.warehouse) : runLocalInventoryAnalysis('default', options.warehouse);
+            return `📡 **Koneksi Internet Terputus / Tidak Dapat Menghubungi Google AI**\n\n` +
+                   `*Beralih ke analisis kalkulasi lokal offline:*\n\n` + localFallback;
+          }
+
+          return `⚠️ **Terjadi Kendala Pemrosesan AI**\n\n` +
+                 `Error: *${err.message || 'Unknown error'}*\n\n` +
+                 `Silakan coba beberapa saat lagi atau gunakan mode analisis statistik lokal.`;
+        }
+      }
+
       function addAuditLog(action, entity, ref, description) {
         const userName = state.currentUser ? state.currentUser.name : (state.role === 'ADMIN' ? 'Administrator' : 'Staf');
         store.auditLogs.unshift({
