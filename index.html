@@ -5315,7 +5315,7 @@
       // ASISTEN AI STOKKITA: SMART DATA CONTEXT & LOCAL ANALYSIS
       // ==============================================================================
       function getEffectiveAiWarehouse(requestedWarehouse = null) {
-        if (state.currentUser && state.currentUser.role === 'STAFF') {
+        if (state.role === 'STAFF' || (state.currentUser && state.currentUser.role === 'STAFF')) {
           return getStaffAssignedWarehouse();
         }
         return requestedWarehouse || state.aiWarehouseFilter || 'Semua Gudang';
@@ -5325,7 +5325,7 @@
         const wh = getEffectiveAiWarehouse(requestedWarehouse);
         const products = (store.products || []).filter(p => p.active !== false);
         const warehouses = store.warehouses || [];
-        const isStaff = state.currentUser && state.currentUser.role === 'STAFF';
+        const isStaff = state.role === 'STAFF' || (state.currentUser && state.currentUser.role === 'STAFF');
 
         let totalItems = products.length;
         let totalPhysicalQty = 0;
@@ -5641,12 +5641,14 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
         if (chipId === 'dead-stock') {
           const movedSkus = new Set();
           (store.transactions || []).forEach(t => {
+            if (wh !== 'Semua Gudang' && t.warehouse !== wh) return;
             const time = parseDateTimeToSort(t.date);
             if (time >= thirtyDaysAgo && (t.type || '').toLowerCase().includes('keluar')) {
               if (Array.isArray(t.details)) {
                 t.details.forEach(d => { if (d.sku) movedSkus.add(d.sku); });
               }
-              if (t.productId) movedSkus.add(t.productId);
+              const singleSku = t.productId || t.sku;
+              if (singleSku) movedSkus.add(singleSku);
             }
           });
 
@@ -5698,18 +5700,38 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
           parts: [{ text: contextText }]
         };
 
-        // 3. Susun riwayat multi-turn (sliding window: 6 pesan terakhir)
+        // 3. Susun riwayat multi-turn (sliding window: 6 pesan sebelumnya)
+        let previousMessages = (state.aiMessages || []);
+        if (previousMessages.length > 0 && previousMessages[previousMessages.length - 1].sender === 'user' && previousMessages[previousMessages.length - 1].text === userQuery) {
+          previousMessages = previousMessages.slice(0, -1);
+        }
+
+        let historySlice = previousMessages.filter(m => m.text && !m.isError).slice(-6);
+
+        // Pastikan urutan percakapan multi-turn selalu diawali dengan role 'user' (syarat wajib Gemini API)
+        while (historySlice.length > 0 && historySlice[0].sender !== 'user') {
+          historySlice.shift();
+        }
+
         const historyContents = [];
-        const rawHistory = (state.aiMessages || []).slice(-6);
-        rawHistory.forEach(msg => {
-          if (!msg.text || msg.isError) return;
-          historyContents.push({
-            role: msg.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.text }]
-          });
+        let lastRole = null;
+        historySlice.forEach(msg => {
+          const currentRole = msg.sender === 'user' ? 'user' : 'model';
+          if (currentRole !== lastRole) {
+            historyContents.push({
+              role: currentRole,
+              parts: [{ text: msg.text }]
+            });
+            lastRole = currentRole;
+          }
         });
 
-        // Tambahkan query terkini pengguna
+        // Jika peran terakhir dalam history adalah 'user', hapus agar userQuery di bawah tidak menjadi role ganda berturut-turut
+        if (lastRole === 'user' && historyContents.length > 0) {
+          historyContents.pop();
+        }
+
+        // Tambahkan query terkini pengguna secara tepat 1 kali di akhir
         historyContents.push({
           role: 'user',
           parts: [{ text: userQuery }]
@@ -10858,13 +10880,13 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
         html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre style="background:var(--ink-900);color:#f8fafc;padding:10px 14px;border-radius:8px;font-size:12px;overflow-x:auto;margin:10px 0"><code>$2</code></pre>');
         html = html.replace(/`([^`]+)`/g, '<code style="background:var(--bg-subtle, #e2e8f0);color:var(--ink-900);padding:2px 6px;border-radius:4px;font-size:11px;font-family:monospace">$1</code>');
 
-        // Bold & Italic
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-        // Lists
+        // Lists (Proses sebelum Italic agar bullet * tidak terpotong)
         html = html.replace(/(?:^|\n)[*-] (.*)/g, '<li style="margin-left:18px;margin-bottom:4px">$1</li>');
         html = html.replace(/(<li[\s\S]*?<\/li>)+/g, '<ul style="margin:8px 0;padding-left:4px">$0</ul>');
+
+        // Bold & Italic
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/(?<!\w)\*([^\*\n]+)\*(?!\w)/g, '<em>$1</em>');
 
         // Line breaks
         html = html.replace(/\n{2,}/g, '<br><br>');
@@ -11034,6 +11056,7 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
       }
 
       async function handleSendAiMessage(promptText, chipId = null) {
+        if (state.aiLoading) return;
         if (!promptText || !promptText.trim()) return;
         const cleanPrompt = promptText.trim();
         const msgId = 'msg_' + Date.now();

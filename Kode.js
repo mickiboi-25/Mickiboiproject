@@ -1928,7 +1928,9 @@ function resetDatabaseTotalBersih_HATI_HATI() {
     timezone: 'Asia/Jakarta (WIB)',
     rejectNegativeStock: true,
     autoLogoutEnabled: true,
-    autoLogoutMinutes: 15
+    autoLogoutMinutes: 15,
+    geminiApiKey: '',
+    geminiModel: 'gemini-2.5-flash'
   });
 
   // 2. CATEGORIES
