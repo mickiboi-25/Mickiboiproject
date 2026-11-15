@@ -5683,7 +5683,7 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
       }
 
       async function callGeminiAPI(userQuery, options = {}) {
-        const apiKey = (store.settings && store.settings.geminiApiKey ? store.settings.geminiApiKey.trim() : '');
+        const apiKey = ((store.settings && (store.settings.openrouterApiKey || store.settings.geminiApiKey)) || localStorage.getItem('stokkita_ai_api_key') || '').trim();
         let model = (store.settings && store.settings.geminiModel ? store.settings.geminiModel.trim() : 'gemini-2.5-flash') || 'gemini-2.5-flash';
 
         // 1. Jika API Key belum terkonfigurasi, alihkan ke fallback lokal jika query cocok dengan chip, atau beri panduan
@@ -5696,17 +5696,82 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
 
         // 2. Susun system instruction & dynamic context
         const contextText = buildInventoryContext(options.warehouse);
-        const systemInstruction = {
-          parts: [{ text: contextText }]
-        };
 
-        // 3. Susun riwayat multi-turn (sliding window: 6 pesan sebelumnya)
+        // 3. Susun riwayat percakapan (sliding window)
         let previousMessages = (state.aiMessages || []);
         if (previousMessages.length > 0 && previousMessages[previousMessages.length - 1].sender === 'user' && previousMessages[previousMessages.length - 1].text === userQuery) {
           previousMessages = previousMessages.slice(0, -1);
         }
 
         let historySlice = previousMessages.filter(m => m.text && !m.isError).slice(-6);
+
+        // Dukungan OpenRouter API Key (sk-or-v1-... atau sk-...)
+        if (apiKey.startsWith('sk-or-') || apiKey.startsWith('sk-')) {
+          const openRouterMessages = [
+            {
+              role: 'system',
+              content: `Anda adalah FlowAI, asisten analisis cerdas sistem inventori StokKita.
+Tugas Anda: Membantu pengguna menganalisa kondisi stok, pergerakan barang keluar-masuk, dan rekomendasi restock berdasarkan data faktual berikut:
+${contextText}
+
+Aturan Menjawab:
+1. Jawab selalu dalam bahasa Indonesia yang ramah, ringkas, profesional, dan to the point.
+2. Gunakan format markdown: tebal (**angka/nama barang**), list poin, atau tabel markdown bila perlu.
+3. HANYA gunakan fakta dari data inventori di atas. Jangan mengarang angka atau data fiktif.`
+            }
+          ];
+
+          historySlice.forEach(msg => {
+            openRouterMessages.push({
+              role: msg.sender === 'user' ? 'user' : 'assistant',
+              content: msg.text
+            });
+          });
+
+          openRouterMessages.push({
+            role: 'user',
+            content: userQuery
+          });
+
+          try {
+            const orResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + apiKey,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': window.location.origin || 'https://stokkita.local',
+                'X-Title': 'StokKita FlowAI'
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.0-flash-001,google/gemini-2.0-flash-exp:free,meta-llama/llama-3.3-70b-instruct:free,openrouter/auto',
+                messages: openRouterMessages,
+                temperature: 0.3,
+                max_tokens: 1200
+              })
+            });
+
+            const orData = await orResponse.json().catch(() => ({}));
+            if (!orResponse.ok) {
+              const errMsg = (orData && orData.error && orData.error.message) || `HTTP error ${orResponse.status}`;
+              const err = new Error(errMsg);
+              err.status = orResponse.status;
+              err.data = orData;
+              throw err;
+            }
+
+            const reply = orData.choices && orData.choices[0] && orData.choices[0].message && orData.choices[0].message.content;
+            if (!reply) throw new Error('Tidak ada respon teks yang diterima dari OpenRouter API.');
+            return reply;
+          } catch (orErr) {
+            console.warn('OpenRouter API Error:', orErr);
+            throw orErr;
+          }
+        }
+
+        // 4. Jika Google Gemini Direct API
+        const systemInstruction = {
+          parts: [{ text: contextText }]
+        };
 
         // Pastikan urutan percakapan multi-turn selalu diawali dengan role 'user' (syarat wajib Gemini API)
         while (historySlice.length > 0 && historySlice[0].sender !== 'user') {
@@ -10716,50 +10781,50 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
                 </div>
               </article>
 
-              <!-- Integrasi AI Google Gemini -->
+              <!-- Konfigurasi FlowAI (OpenRouter / External API Key) -->
               <article class="card">
                 <div class="card-header" style="padding:16px 20px;border-bottom:1px solid var(--ink-100);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-                  <div>
-                    <h3 style="margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px">
-                      ${icon('sparkles', 'icon')} Integrasi AI Google Gemini
-                    </h3>
-                    <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">Koneksi kecerdasan buatan untuk analisis mutasi keluar-masuk barang & rekomendasi restock.</p>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="width:38px;height:38px;border-radius:10px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">
+                      💡
+                    </div>
+                    <div>
+                      <h3 style="margin:0;font-size:15px;font-weight:700">Konfigurasi FlowAI</h3>
+                      <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">Asisten pintar analisis kondisi keuangan & stok inventori otomatis.</p>
+                    </div>
                   </div>
-                  <span class="badge ${store.settings.geminiApiKey ? 'success' : 'neutral'}" style="font-size:11px;padding:4px 10px;font-weight:500">
-                    ${store.settings.geminiApiKey ? '🟢 Gemini AI Aktif' : '⚪ Mode Offline / Belum Ada Key'}
+                  <span class="badge ${(store.settings.geminiApiKey || store.settings.openrouterApiKey) ? 'success' : 'neutral'}" style="font-size:11px;padding:4px 10px;font-weight:500">
+                    ${(store.settings.geminiApiKey || store.settings.openrouterApiKey) ? '🟢 FlowAI Aktif' : '⚪ Mode Analisis Lokal'}
                   </span>
                 </div>
                 <div class="card-body" style="padding:20px">
-                  <div class="form-grid">
-                    <div class="field span-2">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                        <label for="cfgGeminiApiKey" style="margin-bottom:0">Google Gemini API Key</label>
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="font-size:11px;color:var(--primary-600);text-decoration:none;font-weight:600">
-                          + Dapatkan API Key Gratis di Google AI Studio ↗
-                        </a>
-                      </div>
-                      <div class="input-wrap" style="position:relative">
-                        <input class="control" id="cfgGeminiApiKey" type="password" value="${escapeHtml(store.settings.geminiApiKey || '')}" placeholder="AIzaSy..." style="font-family:monospace;font-size:12px;padding-right:85px">
-                        <button type="button" class="btn btn-ghost btn-sm" id="toggleGeminiKeyVis" data-action="toggle-gemini-key-vis" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 8px;font-size:11px">
-                          Lihat
-                        </button>
-                      </div>
-                      <small style="color:var(--ink-500);font-size:11px;margin-top:4px;display:block">
-                        Disimpan terpusat oleh Admin. Seluruh staf gudang otomatis dapat menggunakan fitur Chat AI tanpa perlu memasukkan kunci masing-masing.
-                      </small>
-                    </div>
-                    <div class="field">
-                      <label for="cfgGeminiModel">Model AI</label>
-                      <select class="control" id="cfgGeminiModel">
-                        <option value="gemini-2.5-flash" ${(store.settings.geminiModel || 'gemini-2.5-flash') === 'gemini-2.5-flash' ? 'selected' : ''}>Gemini 2.5 Flash (Sangat Cepat & Cerdas)</option>
-                        <option value="gemini-1.5-flash" ${(store.settings.geminiModel || '') === 'gemini-1.5-flash' ? 'selected' : ''}>Gemini 1.5 Flash (Model Stabil Standar)</option>
-                      </select>
-                    </div>
-                    <div class="field" style="display:flex;align-items:flex-end">
-                      <button type="button" class="btn btn-secondary" data-action="test-gemini-key" style="width:100%;gap:6px">
-                        ${icon('sparkles')} Uji Koneksi Gemini AI
+                  <p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:var(--ink-700)">
+                    FlowAI adalah asisten pintar yang siap membantu Anda menganalisa kondisi keuangan & stok secara otomatis di Dashboard. Untuk mengaktifkannya, Anda memerlukan API Key eksternal bernama <strong>OpenRouter</strong> (atau Google Gemini).
+                  </p>
+                  <p style="margin:0 0 16px;font-size:13px;line-height:1.6;color:var(--ink-700)">
+                    Jika Anda belum punya kuncinya, silakan baca menu <a href="javascript:void(0)" data-action="open-ai-guide" style="color:#4f46e5;font-weight:700;text-decoration:none">Panduan</a> untuk melihat tutorial cara mudah mendapatkannya secara gratis (tanpa kartu kredit).
+                  </p>
+                  <div class="field" style="margin-bottom:16px">
+                    <label for="cfgGeminiApiKey" style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--ink-700);text-transform:uppercase;display:block;margin-bottom:6px">
+                      OPENROUTER API KEY (UNTUK CHAT AI & SCAN STRUK)
+                    </label>
+                    <div class="input-wrap" style="position:relative">
+                      <input class="control" id="cfgGeminiApiKey" type="password" value="${escapeHtml(store.settings.openrouterApiKey || store.settings.geminiApiKey || '')}" placeholder="sk-or-v1-..." style="font-family:monospace;font-size:13px;padding-right:85px">
+                      <button type="button" class="btn btn-ghost btn-sm" id="toggleGeminiKeyVis" data-action="toggle-gemini-key-vis" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 8px;font-size:11px">
+                        Lihat
                       </button>
                     </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <button type="button" class="btn btn-primary" data-action="save-flowai-key" style="background:#4f46e5;border-color:#4f46e5;color:#fff;font-weight:600;padding:9px 20px;border-radius:8px">
+                      Simpan Kunci API
+                    </button>
+                    <button type="button" class="btn" data-action="delete-flowai-key" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-weight:600;padding:9px 20px;border-radius:8px">
+                      Hapus Kunci
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-action="test-gemini-key" style="margin-left:auto;gap:6px">
+                      ${icon('sparkles')} Uji Koneksi API
+                    </button>
                   </div>
                 </div>
               </article>
@@ -10897,7 +10962,7 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
 
       function aiChatPage() {
         const isAdmin = state.role === 'ADMIN';
-        const hasKey = !!(store.settings && store.settings.geminiApiKey);
+        const hasKey = !!(store.settings && (store.settings.openrouterApiKey || store.settings.geminiApiKey));
         const currentWh = getEffectiveAiWarehouse();
         const modelName = (store.settings && store.settings.geminiModel) || 'gemini-2.5-flash';
 
@@ -10916,10 +10981,10 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
           <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
             <div>
               <h2 style="margin:0;font-size:20px;font-weight:700;display:flex;align-items:center;gap:10px">
-                <span style="color:#059669">${icon('sparkles')}</span> Asisten AI StokKita
+                <span style="color:#059669">${icon('sparkles')}</span> Asisten FlowAI StokKita
               </h2>
               <p style="margin:4px 0 0;font-size:12px;color:var(--ink-500)">
-                Analisis pergerakan stok keluar masuk barang secara interaktif dengan Google Gemini API.
+                Analisis pergerakan stok keluar masuk barang secara interaktif dengan AI & OpenRouter API.
               </p>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -10938,12 +11003,12 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
               `}
 
               <span class="badge ${hasKey ? 'success' : 'neutral'}" style="font-size:11px;padding:5px 12px">
-                ${hasKey ? `🟢 ${modelName.includes('2.5') ? 'Gemini 2.5 Flash' : 'Gemini 1.5 Flash'}` : '⚪ Mode Analisis Lokal'}
+                ${hasKey ? '🟢 FlowAI Terhubung' : '⚪ Mode Analisis Lokal'}
               </span>
 
               ${isAdmin ? `
                 <button type="button" class="btn btn-secondary btn-sm" data-action="open-gemini-key-modal" style="gap:6px">
-                  ${icon('settings')} Atur API Key
+                  💡 Konfigurasi FlowAI
                 </button>
               ` : ''}
 
@@ -11112,60 +11177,123 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
 
       // Modal Generators
       function openGeminiKeyModal() {
-        const currentKey = (store.settings && store.settings.geminiApiKey) || '';
-        const currentModel = (store.settings && store.settings.geminiModel) || 'gemini-2.5-flash';
+        const currentKey = (store.settings && (store.settings.openrouterApiKey || store.settings.geminiApiKey)) || '';
 
         openModal(`
           <div class="modal-header">
-            <div>
-              <h3 id="modalTitle" style="margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">
-                ${icon('sparkles')} Pengaturan Google Gemini AI
-              </h3>
-              <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">
-                Konfigurasi API Key terpusat untuk asisten analisis inventori.
-              </p>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:36px;height:36px;border-radius:10px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:18px">💡</div>
+              <div>
+                <h3 id="modalTitle" style="margin:0;font-size:16px;font-weight:700">Konfigurasi FlowAI</h3>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">
+                  Koneksi API Key eksternal untuk analisis stok & keuangan cerdas.
+                </p>
+              </div>
             </div>
             <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
           </div>
-          <div class="modal-body" style="padding:20px">
-            <div class="field" style="margin-bottom:14px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <label for="quickGeminiApiKey" style="margin:0;font-weight:600">Google Gemini API Key</label>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="font-size:11px;color:var(--primary-600);text-decoration:none;font-weight:600">
-                  + Dapatkan API Key Gratis ↗
-                </a>
-              </div>
+          <div class="modal-body" style="padding:20px;font-size:13px;line-height:1.6">
+            <p style="margin:0 0 10px;color:var(--ink-700)">
+              FlowAI adalah asisten pintar yang siap membantu Anda menganalisa kondisi keuangan & stok secara otomatis di Dashboard. Untuk mengaktifkannya, Anda memerlukan API Key bernama <strong>OpenRouter</strong> (atau Google Gemini).
+            </p>
+            <p style="margin:0 0 16px;color:var(--ink-700)">
+              Jika Anda belum punya kuncinya, silakan baca menu <a href="javascript:void(0)" data-action="open-ai-guide" style="color:#4f46e5;font-weight:700;text-decoration:none">Panduan</a> untuk melihat tutorial cara mudah mendapatkannya secara gratis (tanpa kartu kredit).
+            </p>
+            <div class="field" style="margin-bottom:16px">
+              <label for="quickGeminiApiKey" style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--ink-700);text-transform:uppercase;display:block;margin-bottom:6px">
+                OPENROUTER API KEY (UNTUK CHAT AI & SCAN STRUK)
+              </label>
               <div class="input-wrap" style="position:relative">
-                <input class="control" id="quickGeminiApiKey" type="password" value="${escapeHtml(currentKey)}" placeholder="AIzaSy..." style="font-family:monospace;font-size:12px;padding-right:85px">
+                <input class="control" id="quickGeminiApiKey" type="password" value="${escapeHtml(currentKey)}" placeholder="sk-or-v1-..." style="font-family:monospace;font-size:13px;padding-right:85px">
                 <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-gemini-key-vis" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 8px;font-size:11px">
                   Lihat
                 </button>
               </div>
-              <small style="color:var(--ink-500);font-size:11px;margin-top:4px;display:block">
-                Kunci ini disimpan secara terpusat untuk seluruh pengguna sistem StokKita.
-              </small>
             </div>
-
-            <div class="field" style="margin-bottom:14px">
-              <label for="quickGeminiModel" style="font-weight:600">Model Generatif</label>
-              <select class="control" id="quickGeminiModel">
-                <option value="gemini-2.5-flash" ${currentModel === 'gemini-2.5-flash' ? 'selected' : ''}>Gemini 2.5 Flash (Sangat Cepat & Cerdas - Rekomendasi)</option>
-                <option value="gemini-1.5-flash" ${currentModel === 'gemini-1.5-flash' ? 'selected' : ''}>Gemini 1.5 Flash (Model Stabil)</option>
-              </select>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:10px">
-              <button type="button" class="btn btn-secondary btn-sm" data-action="test-gemini-key" style="gap:6px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <button type="button" class="btn btn-primary" data-action="save-flowai-key" style="background:#4f46e5;border-color:#4f46e5;color:#fff;font-weight:600;padding:9px 20px;border-radius:8px">
+                Simpan Kunci API
+              </button>
+              <button type="button" class="btn" data-action="delete-flowai-key" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-weight:600;padding:9px 20px;border-radius:8px">
+                Hapus Kunci
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="test-gemini-key" style="margin-left:auto;gap:6px">
                 ${icon('sparkles')} Uji Koneksi API
               </button>
             </div>
           </div>
-          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--ink-100)">
-            <button type="button" class="btn btn-ghost" data-action="close-modal">Batal</button>
-            <button type="button" class="btn btn-primary" data-action="save-quick-gemini-key">Simpan Konfigurasi</button>
+        `);
+      }
+      function openAIGuideModal() {
+        openModal(`
+          <div class="modal-header">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:36px;height:36px;border-radius:10px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:18px">💡</div>
+              <div>
+                <h3 id="modalTitle" style="margin:0;font-size:16px;font-weight:700">Panduan Dapatkan API Key OpenRouter</h3>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">Tutorial langkah mudah & gratis tanpa memerlukan kartu kredit</p>
+              </div>
+            </div>
+            <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
+          </div>
+          <div class="modal-body" style="padding:20px;font-size:13px;line-height:1.6">
+            <div style="background:#f8fafc;border:1px solid var(--ink-200);border-radius:12px;padding:14px;margin-bottom:16px">
+              <strong style="color:#4f46e5;display:block;margin-bottom:4px;font-size:13px">Apa itu OpenRouter?</strong>
+              OpenRouter adalah platform penyedia kecerdasan buatan global yang menghubungkan berbagai model AI terbaik (Google Gemini, Llama, DeepSeek, dll). Anda bisa menggunakannya secara gratis untuk chatbot FlowAI di StokKita.
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:10px">
+                <div style="width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">1</div>
+                <div>
+                  <strong style="display:block;color:var(--ink-900)">Kunjungi Website OpenRouter</strong>
+                  Buka link <a href="https://openrouter.ai" target="_blank" rel="noopener" style="color:#4f46e5;font-weight:600;text-decoration:underline">https://openrouter.ai</a> di tab baru browser Anda.
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px">
+                <div style="width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">2</div>
+                <div>
+                  <strong style="display:block;color:var(--ink-900)">Masuk / Daftar Akun Gratis</strong>
+                  Klik tombol <strong>Sign In</strong> di pojok kanan atas, lalu login menggunakan akun Google Anda (proses 1 detik, tanpa kartu kredit).
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px">
+                <div style="width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">3</div>
+                <div>
+                  <strong style="display:block;color:var(--ink-900)">Buka Menu Keys & Buat Kunci Baru</strong>
+                  Akses langsung <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:#4f46e5;font-weight:600;text-decoration:underline">openrouter.ai/keys</a>, lalu klik tombol biru <strong>"Create Key"</strong>.
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px">
+                <div style="width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">4</div>
+                <div>
+                  <strong style="display:block;color:var(--ink-900)">Salin Kunci API Anda</strong>
+                  Beri nama misalnya <code>StokKita FlowAI</code>, klik <strong>Create</strong>, lalu salin kuncinya yang berawalan <code>sk-or-v1-...</code>.
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px">
+                <div style="width:26px;height:26px;border-radius:50%;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">5</div>
+                <div>
+                  <strong style="display:block;color:var(--ink-900)">Tempelkan & Simpan Kunci</strong>
+                  Kembali ke aplikasi StokKita, tempelkan kunci ke kolom <strong>OPENROUTER API KEY</strong>, kemudian klik <strong>Simpan Kunci API</strong>.
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:16px;padding:12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;font-size:12px;color:#065f46">
+              🎉 <strong>Selesai!</strong> Asisten FlowAI Anda kini langsung aktif dan siap menjawab segala pertanyaan analisa stok & keuangan dengan cerdas.
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--ink-100)">
+            <button class="btn btn-primary" data-action="close-modal">Saya Mengerti</button>
           </div>
         `);
       }
+
       function openModal(content, isLarge = false) {
         const modalEl = document.getElementById('modal');
         modalEl.className = isLarge ? 'modal modal-lg show' : 'modal show';
@@ -15414,6 +15542,13 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
                 <strong style="color:var(--brand-700);display:block;margin-bottom:4px">4. Mutasi & Stok Opname</strong>
                 Gunakan menu Transaksi untuk mencatat barang masuk/keluar, transfer multi gudang, dan rekonsiliasi stok opname.
               </div>
+              <div style="padding:12px;border:1px solid #c7d2fe;border-radius:10px;background:#f5f3ff">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <strong style="color:#4f46e5;display:block;margin-bottom:4px">5. Asisten FlowAI & OpenRouter API</strong>
+                  <button type="button" class="btn btn-secondary btn-sm" data-action="open-ai-guide" style="font-size:11px;padding:3px 10px;color:#4f46e5;border-color:#c7d2fe">Buka Tutorial</button>
+                </div>
+                Hubungkan API Key eksternal seperti OpenRouter gratis tanpa kartu kredit untuk menikmati analisis stok cerdas interaktif dan deteksi pergerakan barang otomatis.
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -16205,7 +16340,13 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
 
           const geminiKeyEl = document.getElementById('cfgGeminiApiKey');
           if (geminiKeyEl) {
-            store.settings.geminiApiKey = geminiKeyEl.value.trim();
+            const val = geminiKeyEl.value.trim();
+            store.settings.geminiApiKey = val;
+            store.settings.openrouterApiKey = val;
+            try {
+              if (val) localStorage.setItem('stokkita_ai_api_key', val);
+              else localStorage.removeItem('stokkita_ai_api_key');
+            } catch (e) {}
           }
           const geminiModelEl = document.getElementById('cfgGeminiModel');
           if (geminiModelEl) {
@@ -16216,6 +16357,41 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
           saveStore();
           render();
           return showToast('Pengaturan Tersimpan', 'Konfigurasi inventori berhasil diperbarui.');
+        }
+
+        if (action === 'save-flowai-key') {
+          const input = document.getElementById('cfgGeminiApiKey') || document.getElementById('quickGeminiApiKey');
+          const val = input ? input.value.trim() : '';
+          if (!val) {
+            return showToast('Kunci API Kosong', 'Silakan masukkan OpenRouter API Key Anda terlebih dahulu.', true);
+          }
+          store.settings.openrouterApiKey = val;
+          store.settings.geminiApiKey = val;
+          try { localStorage.setItem('stokkita_ai_api_key', val); } catch (e) {}
+
+          addAuditLog('UPDATE', 'Konfigurasi FlowAI', 'Config', 'Menyimpan Kunci API FlowAI Eksternal');
+          saveStore();
+          closeModal();
+          render();
+          return showToast('Kunci API Tersimpan', 'Fitur chatbot FlowAI kini aktif menggunakan API Key eksternal.');
+        }
+
+        if (action === 'delete-flowai-key') {
+          store.settings.openrouterApiKey = '';
+          store.settings.geminiApiKey = '';
+          try { localStorage.removeItem('stokkita_ai_api_key'); } catch (e) {}
+          const input = document.getElementById('cfgGeminiApiKey') || document.getElementById('quickGeminiApiKey');
+          if (input) input.value = '';
+
+          addAuditLog('DELETE', 'Konfigurasi FlowAI', 'Config', 'Menghapus Kunci API FlowAI Eksternal');
+          saveStore();
+          closeModal();
+          render();
+          return showToast('Kunci API Dihapus', 'Fitur chatbot FlowAI beralih ke mode analisis lokal.');
+        }
+
+        if (action === 'open-ai-guide') {
+          return openAIGuideModal();
         }
 
         if (action === 'toggle-gemini-key-vis') {
@@ -16235,12 +16411,42 @@ ${recentTx.length > 0 ? recentTx.join('\n') : '- Belum ada catatan transaksi.'}
 
         if (action === 'test-gemini-key') {
           const keyInput = document.getElementById('cfgGeminiApiKey') || document.getElementById('quickGeminiApiKey');
-          const key = keyInput ? keyInput.value.trim() : (store.settings.geminiApiKey || '');
+          const key = keyInput ? keyInput.value.trim() : (store.settings.openrouterApiKey || store.settings.geminiApiKey || '');
           const modelInput = document.getElementById('cfgGeminiModel') || document.getElementById('quickGeminiModel');
           const model = modelInput ? modelInput.value.trim() : (store.settings.geminiModel || 'gemini-2.5-flash');
 
           if (!key) {
-            return showToast('API Key Kosong', 'Silakan masukkan Google Gemini API Key terlebih dahulu.', 'warning');
+            return showToast('API Key Kosong', 'Silakan masukkan API Key terlebih dahulu.', 'warning');
+          }
+
+          if (key.startsWith('sk-or-') || key.startsWith('sk-')) {
+            showToast('Menguji API Key...', 'Menghubungi endpoint OpenRouter API.');
+            fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + key,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': window.location.origin || 'https://stokkita.local',
+                'X-Title': 'StokKita FlowAI'
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.0-flash-001,google/gemini-2.0-flash-exp:free,openrouter/auto',
+                messages: [{ role: 'user', content: 'Ping' }],
+                max_tokens: 10
+              })
+            })
+            .then(async res => {
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                const errMsg = (data && data.error && data.error.message) || `HTTP error ${res.status}`;
+                throw new Error(errMsg);
+              }
+              showToast('Koneksi Berhasil! 🟢', 'OpenRouter FlowAI terhubung dan siap digunakan.', 'success');
+            })
+            .catch(err => {
+              showToast('Uji Koneksi Gagal 🔴', (err && err.message) || 'Tidak dapat menghubungi OpenRouter API.', 'danger');
+            });
+            return;
           }
 
           showToast('Menguji API Key...', 'Menghubungi endpoint Google Gemini REST API.');
