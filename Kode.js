@@ -77,8 +77,15 @@ function doGet(e) {
       });
     }
 
-    // 2. Setup database sheet otomatis via GET jika diperlukan (API)
+    // 2. Setup database sheet (dilindungi token admin agar tidak dipicu tanpa izin via browser)
     if (action === 'setup') {
+      const token = (e && e.parameter && e.parameter.token) || '';
+      if (token !== 'STOKKITA_SETUP_SECRET') {
+        return jsonResponse({
+          status: 'error',
+          message: 'Akses ditolak. Setup database hanya dapat dijalankan langsung dari Apps Script Editor atau dengan token otorisasi admin.'
+        });
+      }
       setupDatabase();
       return jsonResponse({
         status: 'success',
@@ -87,8 +94,15 @@ function doGet(e) {
       });
     }
 
-    // 3. Migrasi database otomatis ke format kolom terpisah (API)
+    // 3. Migrasi database otomatis (dilindungi token admin)
     if (action === 'migrate') {
+      const token = (e && e.parameter && e.parameter.token) || '';
+      if (token !== 'STOKKITA_SETUP_SECRET') {
+        return jsonResponse({
+          status: 'error',
+          message: 'Akses ditolak. Migrasi database hanya dapat dijalankan langsung dari Apps Script Editor atau dengan token otorisasi admin.'
+        });
+      }
       const resultMsg = migrateDatabase();
       return jsonResponse({
         status: 'success',
@@ -270,6 +284,59 @@ function apiMigrate() {
   }
 }
 
+function apiAskGemini(query, stockContext) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const settings = readSettingsSheet(ss);
+    const apiKey = (settings && settings.geminiApiKey) ? String(settings.geminiApiKey).trim() : '';
+    const model = (settings && settings.geminiModel) ? String(settings.geminiModel).trim() : 'gemini-2.5-flash';
+
+    if (!apiKey) {
+      return { status: 'fallback', message: 'Gemini API Key belum dikonfigurasi di Pengaturan.' };
+    }
+
+    const systemPrompt = "Anda adalah Asisten AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
+      "Jawab pertanyaan pengguna secara cerdas, ramah, ringkas, dan akurat dalam Bahasa Indonesia berdasarkan data inventori terkini yang dilampirkan. " +
+      "Format angka dalam format Indonesia (misal: 1.250 unit, Rp 50.000). Berikan saran taktis jika ada stok yang hampir habis (kritis) atau barang slow-moving.";
+
+    const promptText = `${systemPrompt}\n\n[DATA INVENTORI TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN PENGGUNA]:\n${query}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const payload = {
+      contents: [{
+        parts: [{ text: promptText }]
+      }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1024
+      }
+    };
+
+    const response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const statusCode = response.getResponseCode();
+    const respJson = JSON.parse(response.getContentText());
+
+    if (statusCode === 200 && respJson.candidates && respJson.candidates.length > 0) {
+      const candidate = respJson.candidates[0];
+      const text = (candidate.content && candidate.content.parts)
+        ? candidate.content.parts.map(p => p.text).join('\n')
+        : '';
+      return { status: 'success', answer: text };
+    } else {
+      const errMsg = (respJson.error && respJson.error.message) || response.getContentText();
+      return { status: 'error', message: errMsg };
+    }
+  } catch (err) {
+    return { status: 'error', message: err.toString() };
+  }
+}
+
 /**
  * Handle HTTP POST requests from frontend
  */
@@ -323,6 +390,12 @@ function doPost(e) {
         status: 'success',
         message: resultMsg
       });
+    }
+
+    // 6. Konsultasi Analitik Stok via Google Gemini AI
+    if (payload.action === 'askGemini') {
+      const res = apiAskGemini(payload.query, payload.stockContext);
+      return jsonResponse(res);
     }
 
     return jsonResponse({ status: 'error', message: 'Action POST tidak dikenali: ' + payload.action });
@@ -514,7 +587,12 @@ function readAllDataFromSpreadsheet() {
     categories: readCategoriesSheet(ss),
     warehouses: readTableSheet(ss, SHEET_NAMES.WAREHOUSES),
     products: readProductsSheet(ss),
-    users: readTableSheet(ss, SHEET_NAMES.USERS),
+    // SENSOR KEAMANAN: Hapus password agar tidak pernah bocor ke sisi klien browser
+    users: readTableSheet(ss, SHEET_NAMES.USERS).map(u => {
+      const safeUser = Object.assign({}, u);
+      delete safeUser.password;
+      return safeUser;
+    }),
     transactions: readAllTransactions(ss),
     transfers: readTransfersSheet(ss),
     opnames: readOpnamesSheet(ss),
@@ -535,7 +613,7 @@ function readSettingsSheet(ss) {
     if (key) {
       const strVal = String(val !== undefined && val !== null ? val : '').trim();
       // Kunci yang wajib bertipe teks/string (agar awalan angka 0 seperti nomor telepon tidak terpotong)
-      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'openrouterApiKey' || key === 'geminiApiKey') {
+      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat') {
         settings[key] = strVal;
       } else if (strVal.toLowerCase() === 'true' || val === true) {
         settings[key] = true;
@@ -1254,9 +1332,9 @@ function saveAllDataToSpreadsheet(data) {
       writeProductsSheet(ss, data.products, data.warehouses);
     }
 
-    // 5. Users
+    // 5. Users (DIPROTEKSI DENGAN writeUsersSheet AGAR PASSWORD TIDAK HILANG/TERHAPUS)
     if (data.users) {
-      writeTableSheet(ss, SHEET_NAMES.USERS, data.users, ['id', 'username', 'code', 'name', 'role', 'warehouse', 'password', 'active', 'lastLogin']);
+      writeUsersSheet(ss, data.users);
     }
 
     // 6. Transaksi Barang Masuk (KOLOM TERPISAH: sku, nama_barang, qty, satuan, foto)
@@ -1356,6 +1434,57 @@ function writeTableSheet(ss, sheetName, items, columns) {
   formatHeaderRow(sheet, columns.length);
 }
 
+/**
+ * Menulis sheet USERS dengan proteksi keamanan password:
+ * Jika data pengguna dari frontend tidak menyertakan password (karena disensor di sisi klien),
+ * password lama yang tersimpan di spreadsheet akan tetap dipertahankan.
+ */
+function writeUsersSheet(ss, incomingUsers) {
+  if (!incomingUsers) return;
+  const sheet = getOrCreateSheet(ss, SHEET_NAMES.USERS);
+  const existingValues = sheet.getLastRow() > 1 ? sheet.getDataRange().getValues() : [];
+  const existingPasswordMap = {};
+
+  if (existingValues.length > 1) {
+    const headers = existingValues[0].map(h => String(h || '').trim().toLowerCase());
+    const idIdx = headers.indexOf('id');
+    const uIdx = headers.indexOf('username');
+    const pwIdx = headers.indexOf('password');
+
+    if (pwIdx !== -1) {
+      for (let i = 1; i < existingValues.length; i++) {
+        const row = existingValues[i];
+        const rowId = idIdx !== -1 ? String(row[idIdx] || '').trim() : '';
+        const rowU = uIdx !== -1 ? String(row[uIdx] || '').trim().toLowerCase() : '';
+        const rowPw = String(row[pwIdx] || '');
+        if (rowId) existingPasswordMap[rowId] = rowPw;
+        if (rowU) existingPasswordMap[rowU] = rowPw;
+      }
+    }
+  }
+
+  const columns = ['id', 'username', 'code', 'name', 'role', 'warehouse', 'password', 'active', 'lastLogin'];
+  const preparedUsers = incomingUsers.map((u, idx) => {
+    let pw = u.password;
+    if (!pw || String(pw).trim() === '') {
+      pw = existingPasswordMap[u.id] || existingPasswordMap[String(u.username || '').trim().toLowerCase()] || (String(u.username || '').toLowerCase() === 'admin' ? 'admin123' : '123456');
+    }
+    return {
+      id: u.id || ('U' + String(idx + 1).padStart(2, '0')),
+      username: u.username || '',
+      code: u.code || '',
+      name: u.name || '',
+      role: u.role || 'STAFF',
+      warehouse: u.warehouse || 'Semua Gudang',
+      password: pw,
+      active: u.active !== undefined ? u.active : true,
+      lastLogin: u.lastLogin || ''
+    };
+  });
+
+  writeTableSheet(ss, SHEET_NAMES.USERS, preparedUsers, columns);
+}
+
 function writeProductsSheet(ss, products, warehouses) {
   const sheet = getOrCreateSheet(ss, SHEET_NAMES.PRODUCTS);
   sheet.clear();
@@ -1430,13 +1559,38 @@ function writeProductsSheet(ss, products, warehouses) {
  */
 function writeTransactionsInSheet(ss, transactions) {
   const sheet = getOrCreateSheet(ss, SHEET_NAMES.TRANSACTIONS_IN);
-  sheet.clear();
+
+  // Ambil transaksi lama dari spreadsheet untuk mencegah terhapusnya transaksi pengguna lain (Anti-Race Condition)
+  const existingValues = sheet.getLastRow() > 1 ? sheet.getDataRange().getValues() : [];
+  const incomingTxNos = new Set();
 
   // Urutkan transaksi secara kronologis (tanggal terlama di atas, terbaru di baris paling bawah)
   const inTx = sortChronological((transactions || []).filter(t => {
     const tp = String(t.type || '').toLowerCase();
-    return tp.includes('masuk') || tp === 'in';
+    const isMatch = tp.includes('masuk') || tp === 'in';
+    if (isMatch) {
+      const no = String(t.transaction_no || t.no || '').trim().toUpperCase();
+      if (no) incomingTxNos.add(no);
+    }
+    return isMatch;
   }));
+
+  const preservedRows = [];
+  if (existingValues.length > 1) {
+    const headers = existingValues[0].map(h => String(h || '').trim().toLowerCase());
+    const txNoIdx = headers.indexOf('transaction_no');
+    if (txNoIdx !== -1) {
+      for (let r = 1; r < existingValues.length; r++) {
+        const row = existingValues[r];
+        const rowTxNo = String(row[txNoIdx] || '').trim().toUpperCase();
+        if (rowTxNo && !incomingTxNos.has(rowTxNo)) {
+          preservedRows.push(row);
+        }
+      }
+    }
+  }
+
+  sheet.clear();
 
   const cols = ['id', 'transaction_no', 'date', 'warehouse', 'supplier', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto'];
   const rows = [cols];
@@ -1470,6 +1624,9 @@ function writeTransactionsInSheet(ss, transactions) {
     });
   });
 
+  // Tambahkan transaksi pengguna lain yang belum ada di payload lokal
+  preservedRows.forEach(pRow => rows.push(pRow));
+
   sheet.getRange(1, 1, rows.length, cols.length).setValues(rows);
   formatHeaderRow(sheet, cols.length);
 
@@ -1485,13 +1642,38 @@ function writeTransactionsInSheet(ss, transactions) {
  */
 function writeTransactionsOutSheet(ss, transactions) {
   const sheet = getOrCreateSheet(ss, SHEET_NAMES.TRANSACTIONS_OUT);
-  sheet.clear();
+
+  // Ambil transaksi lama dari spreadsheet untuk mencegah terhapusnya transaksi pengguna lain (Anti-Race Condition)
+  const existingValues = sheet.getLastRow() > 1 ? sheet.getDataRange().getValues() : [];
+  const incomingTxNos = new Set();
 
   // Urutkan transaksi secara kronologis (tanggal terlama di atas, terbaru di baris paling bawah)
   const outTx = sortChronological((transactions || []).filter(t => {
     const tp = String(t.type || '').toLowerCase();
-    return tp.includes('keluar') || tp === 'out';
+    const isMatch = tp.includes('keluar') || tp === 'out';
+    if (isMatch) {
+      const no = String(t.transaction_no || t.no || '').trim().toUpperCase();
+      if (no) incomingTxNos.add(no);
+    }
+    return isMatch;
   }));
+
+  const preservedRows = [];
+  if (existingValues.length > 1) {
+    const headers = existingValues[0].map(h => String(h || '').trim().toLowerCase());
+    const txNoIdx = headers.indexOf('transaction_no');
+    if (txNoIdx !== -1) {
+      for (let r = 1; r < existingValues.length; r++) {
+        const row = existingValues[r];
+        const rowTxNo = String(row[txNoIdx] || '').trim().toUpperCase();
+        if (rowTxNo && !incomingTxNos.has(rowTxNo)) {
+          preservedRows.push(row);
+        }
+      }
+    }
+  }
+
+  sheet.clear();
 
   const cols = ['id', 'transaction_no', 'date', 'warehouse', 'customer', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto'];
   const rows = [cols];
@@ -1524,6 +1706,9 @@ function writeTransactionsOutSheet(ss, transactions) {
       seqId++;
     });
   });
+
+  // Tambahkan transaksi pengguna lain yang belum ada di payload lokal
+  preservedRows.forEach(pRow => rows.push(pRow));
 
   sheet.getRange(1, 1, rows.length, cols.length).setValues(rows);
   formatHeaderRow(sheet, cols.length);
