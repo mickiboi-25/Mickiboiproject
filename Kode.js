@@ -613,7 +613,7 @@ function readSettingsSheet(ss) {
     if (key) {
       const strVal = String(val !== undefined && val !== null ? val : '').trim();
       // Kunci yang wajib bertipe teks/string (agar awalan angka 0 seperti nomor telepon tidak terpotong)
-      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat') {
+      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel') {
         settings[key] = strVal;
       } else if (strVal.toLowerCase() === 'true' || val === true) {
         settings[key] = true;

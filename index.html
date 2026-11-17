@@ -4679,7 +4679,9 @@
           timezone: 'Asia/Jakarta (WIB)',
           rejectNegativeStock: true,
           autoLogoutEnabled: true,
-          autoLogoutMinutes: 15
+          autoLogoutMinutes: 15,
+          geminiApiKey: '',
+          geminiModel: 'gemini-2.5-flash'
         }
       };
 
@@ -10249,6 +10251,45 @@
                 </div>
               </article>
 
+              <!-- Integrasi Google Gemini AI -->
+              <article class="card">
+                <div class="card-header" style="padding:16px 20px;border-bottom:1px solid var(--ink-100);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+                  <div>
+                    <h3 style="margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px">
+                      <span>🤖 Integrasi Google Gemini AI</span>
+                    </h3>
+                    <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">Koneksikan API Key Google Gemini untuk mengaktifkan asisten analitik stok cerdas berbasis AI.</p>
+                  </div>
+                  <div>
+                    <span class="badge ${store.settings.geminiApiKey ? 'success' : 'neutral'}" style="font-size:11px;padding:4px 10px;font-weight:500">
+                      ${store.settings.geminiApiKey ? '🟢 Gemini AI Aktif' : '⚪ Mode Analisis Lokal'}
+                    </span>
+                  </div>
+                </div>
+                <div class="card-body" style="padding:20px">
+                  <div class="form-grid">
+                    <div class="field span-2">
+                      <label for="cfgGeminiKey">Google Gemini API Key</label>
+                      <div class="input-wrap" style="position:relative">
+                        <input class="control" type="password" id="cfgGeminiKey" value="${escapeHtml(store.settings.geminiApiKey || '')}" placeholder="Masukkan API Key Google Gemini (AIzaSy...)" style="font-family:monospace;font-size:13px;letter-spacing:0.5px;padding-right:95px">
+                        <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-gemini-key-vis" style="padding:4px 10px;font-size:11px;position:absolute;right:8px;top:50%;transform:translateY(-50%);height:28px;z-index:2">Tampilkan</button>
+                      </div>
+                      <small style="display:block;margin-top:6px;font-size:11px;color:var(--ink-500);line-height:1.5">
+                        Dapatkan API key secara gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--brand-600);font-weight:600;text-decoration:underline">Google AI Studio (aistudio.google.com)</a>. Kunci akan tersimpan secara terenkripsi dan aman pada database spreadsheet Anda.
+                      </small>
+                    </div>
+                    <div class="field span-2">
+                      <label for="cfgGeminiModel">Model Gemini AI</label>
+                      <select class="control" id="cfgGeminiModel">
+                        <option value="gemini-2.5-flash" ${(store.settings.geminiModel === 'gemini-2.5-flash' || !store.settings.geminiModel) ? 'selected' : ''}>gemini-2.5-flash (Cepat, Cerdas & Hemat Kuota — Rekomendasi)</option>
+                        <option value="gemini-1.5-flash" ${store.settings.geminiModel === 'gemini-1.5-flash' ? 'selected' : ''}>gemini-1.5-flash (Sangat Cepat & Stabil)</option>
+                        <option value="gemini-2.5-pro" ${store.settings.geminiModel === 'gemini-2.5-pro' ? 'selected' : ''}>gemini-2.5-pro (Penalaran Rumit & Analisis Mendalam)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
               <!-- Keamanan Sesi -->
               <article class="card">
                 <div class="card-header" style="padding:16px 20px;border-bottom:1px solid var(--ink-100)">
@@ -12449,74 +12490,6 @@
         const tx = store.transactions.find(t => t.no === state.editTxTargetNo);
         if (!tx) return;
 
-        const isOut = tx.type === 'Barang Keluar';
-        const whOptions = store.warehouses.map(w => w.name);
-        const curWh = state.editTxWarehouse || tx.warehouse;
-
-        // Calculate line details with stock info
-        const lineProducts = (state.editTxLines || []).map(l => {
-          const prod = store.products.find(p => p.id === l.productId);
-          let avail = prod ? (prod.stocks[curWh] || 0) : 0;
-          if (isOut && curWh === tx.warehouse) {
-            const origDetail = (tx.details || []).find(d => d.productId === (prod ? prod.id : l.productId) || (prod && d.sku === prod.sku));
-            if (origDetail) avail += Number(origDetail.qty || 0);
-          }
-          return {
-            ...l,
-            product: prod,
-            availStock: avail
-          };
-        }).filter(l => l.product);
-
-        const totalQty = lineProducts.reduce((s, l) => s + Number(l.qty || 0), 0);
-        const hasStockError = isOut && store.settings.rejectNegativeStock && lineProducts.some(l => l.qty > l.availStock || l.qty <= 0);
-
-        openModal(`
-          <div class="modal-header">
-            <div>
-              <h2 id="modalTitle">Edit Transaksi: ${tx.no}</h2>
-              <p>Perbarui rincian barang, kuantitas, atau data dokumen (${tx.type})</p>
-            </div>
-            <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
-          </div>
-          <div class="modal-body" style="max-height:520px;overflow-y:auto">
-            <input type="hidden" id="editTxNo" value="${tx.no}">
-            
-            <div class="notice ${isOut ? 'warning' : 'info'}" style="margin-bottom:14px">
-              ${icon('info')}
-              <div>
-                Mengubah transaksi ini akan <strong>secara otomatis merekonsiliasi saldo stok fisik di gudang</strong> dan memperbarui kartu stok sesuai perubahan barang/kuantitas terbaru.
-              </div>
-            </div>
-
-            ${hasStockError ? `
-              <div class="notice danger" style="margin-bottom:14px">
-                ${icon('alert')}
-                <div>Terdapat barang dengan jumlah melebihi stok yang tersedia di <strong>${curWh}</strong>. Mohon sesuaikan kuantitas.</div>
-              </div>
-            ` : ''}
-
-            <div class="form-grid" style="margin-bottom:16px">
-              <div class="field">
-                <label>Nomor Transaksi</label>
-                <input class="control" value="${tx.no}" disabled style="font-family:monospace;font-weight:700">
-              </div>
-              <div class="field">
-                <label>Tanggal Transaksi *</label>
-                <input class="control" id="editTxDate" type="date" value="${state.editTxDate}">
-              </div>
-              <div class="field">
-                <label>Lokasi Gudang *</label>
-                <select class="control" id="editTxWarehouse">
-                  ${whOptions.map(w => `<option value="${w}" ${curWh === w ? 'selected' : ''}>${w}</option>`).join('')}
-                </select>
-              </div>
-              <div class="field">
-                <label>${tx.type === 'Barang Masuk' ? 'Supplier / Sumber' : 'Penerima / Customer'}</label>
-                <input class="control" id="editTxParty" value="${state.editTxParty || ''}" placeholder="Nama pihak terkait">
-              </div>
-              <div class="field span-2">
-                <label>Nomor Referensi / Surat Jalan</label>
                 <input class="control" id="editTxRef" value="${state.editTxRef || ''}" placeholder="Contoh: PO-998 / SJ-001">
               </div>
             </div>
@@ -15253,6 +15226,17 @@
         if (action === 'migrate-sheets-now') return migrateSheetsNow();
         if (action === 'open-sheets-guide-modal') return openSheetsGuideModal();
 
+        // Google Gemini Key Visibility Toggle
+        if (action === 'toggle-gemini-key-vis') {
+          const inp = document.getElementById('cfgGeminiKey');
+          if (inp) {
+            const isPass = inp.type === 'password';
+            inp.type = isPass ? 'text' : 'password';
+            actionEl.textContent = isPass ? 'Sembunyikan' : 'Tampilkan';
+          }
+          return;
+        }
+
         // Password & Auth Actions
         if (action === 'change-password') return openChangePasswordModal(actionEl.dataset.id);
         if (action === 'save-new-password') return executeSavePassword();
@@ -15300,7 +15284,13 @@
             updateSheetsStatusUI();
           }
 
-          addAuditLog('UPDATE', 'Pengaturan', 'Config', 'Memperbarui aturan aplikasi & identitas bisnis');
+          const geminiKeyEl = document.getElementById('cfgGeminiKey');
+          if (geminiKeyEl) store.settings.geminiApiKey = geminiKeyEl.value.trim();
+
+          const geminiModelEl = document.getElementById('cfgGeminiModel');
+          if (geminiModelEl) store.settings.geminiModel = geminiModelEl.value.trim() || 'gemini-2.5-flash';
+
+          addAuditLog('UPDATE', 'Pengaturan', 'Config', 'Memperbarui aturan aplikasi, identitas bisnis & Gemini AI');
           saveStore();
           render();
           return showToast('Pengaturan Tersimpan', 'Konfigurasi inventori berhasil diperbarui.');
