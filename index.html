@@ -12490,6 +12490,74 @@
         const tx = store.transactions.find(t => t.no === state.editTxTargetNo);
         if (!tx) return;
 
+        const isOut = tx.type === 'Barang Keluar';
+        const whOptions = store.warehouses.map(w => w.name);
+        const curWh = state.editTxWarehouse || tx.warehouse;
+
+        // Calculate line details with stock info
+        const lineProducts = (state.editTxLines || []).map(l => {
+          const prod = store.products.find(p => p.id === l.productId);
+          let avail = prod ? (prod.stocks[curWh] || 0) : 0;
+          if (isOut && curWh === tx.warehouse) {
+            const origDetail = (tx.details || []).find(d => d.productId === (prod ? prod.id : l.productId) || (prod && d.sku === prod.sku));
+            if (origDetail) avail += Number(origDetail.qty || 0);
+          }
+          return {
+            ...l,
+            product: prod,
+            availStock: avail
+          };
+        }).filter(l => l.product);
+
+        const totalQty = lineProducts.reduce((s, l) => s + Number(l.qty || 0), 0);
+        const hasStockError = isOut && store.settings.rejectNegativeStock && lineProducts.some(l => l.qty > l.availStock || l.qty <= 0);
+
+        openModal(`
+          <div class="modal-header">
+            <div>
+              <h2 id="modalTitle">Edit Transaksi: ${tx.no}</h2>
+              <p>Perbarui rincian barang, kuantitas, atau data dokumen (${tx.type})</p>
+            </div>
+            <button class="icon-btn" data-action="close-modal">${icon('close')}</button>
+          </div>
+          <div class="modal-body" style="max-height:520px;overflow-y:auto">
+            <input type="hidden" id="editTxNo" value="${tx.no}">
+            
+            <div class="notice ${isOut ? 'warning' : 'info'}" style="margin-bottom:14px">
+              ${icon('info')}
+              <div>
+                Mengubah transaksi ini akan <strong>secara otomatis merekonsiliasi saldo stok fisik di gudang</strong> dan memperbarui kartu stok sesuai perubahan barang/kuantitas terbaru.
+              </div>
+            </div>
+
+            ${hasStockError ? `
+              <div class="notice danger" style="margin-bottom:14px">
+                ${icon('alert')}
+                <div>Terdapat barang dengan jumlah melebihi stok yang tersedia di <strong>${curWh}</strong>. Mohon sesuaikan kuantitas.</div>
+              </div>
+            ` : ''}
+
+            <div class="form-grid" style="margin-bottom:16px">
+              <div class="field">
+                <label>Nomor Transaksi</label>
+                <input class="control" value="${tx.no}" disabled style="font-family:monospace;font-weight:700">
+              </div>
+              <div class="field">
+                <label>Tanggal Transaksi *</label>
+                <input class="control" id="editTxDate" type="date" value="${state.editTxDate}">
+              </div>
+              <div class="field">
+                <label>Lokasi Gudang *</label>
+                <select class="control" id="editTxWarehouse">
+                  ${whOptions.map(w => `<option value="${w}" ${curWh === w ? 'selected' : ''}>${w}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>${tx.type === 'Barang Masuk' ? 'Supplier / Sumber' : 'Penerima / Customer'}</label>
+                <input class="control" id="editTxParty" value="${state.editTxParty || ''}" placeholder="Nama pihak terkait">
+              </div>
+              <div class="field span-2">
+                <label>Nomor Referensi / Surat Jalan</label>
                 <input class="control" id="editTxRef" value="${state.editTxRef || ''}" placeholder="Contoh: PO-998 / SJ-001">
               </div>
             </div>
