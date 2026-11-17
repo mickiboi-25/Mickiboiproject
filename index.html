@@ -4235,6 +4235,61 @@
     .aichat-bubble .ai-data-table tr:nth-child(even) td {
       background: var(--canvas);
     }
+    .aichat-bubble .ai-quick-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .aichat-bubble .ai-quick-btn {
+      background: var(--surface, #ffffff);
+      border: 1px solid var(--brand-500, #176b57);
+      color: var(--brand-700, #0f5132);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .aichat-bubble .ai-quick-btn:hover {
+      background: var(--brand-500, #176b57);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .aichat-bubble .ai-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .aichat-bubble .ai-badge.danger { background: #fee2e2; color: #b91c1c; }
+    .aichat-bubble .ai-badge.success { background: #dcfce7; color: #15803d; }
+    .aichat-bubble .ai-badge.info { background: #e0f2fe; color: #0369a1; }
+    .aichat-bubble .ai-prod-card {
+      background: var(--surface, #ffffff);
+      border: 1px solid var(--ink-200, #e2e8f0);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .aichat-bubble .ai-prod-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-900, #0f172a);
+      margin-bottom: 4px;
+    }
+    .aichat-bubble .ai-prod-meta {
+      font-size: 11px;
+      color: var(--ink-500, #64748b);
+      margin-bottom: 6px;
+    }
     .aichat-typing {
       display: flex; gap: 4px; padding: 10px 13px;
       background: var(--canvas); border: 1px solid var(--ink-200);
@@ -16568,165 +16623,467 @@
           return all.filter(s => { const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
         }
 
-        // ── Analisis Engine (pure local data) ─────────────────────────
+        // ── Analisis Engine (Pintar, Akurat & Cepat) ───────────────────
         function analyzeQuery(q) {
-          const Q = (q || '').toLowerCase();
+          const Q = (q || '').trim().toLowerCase();
+          if (!Q) return 'Silakan ketik pertanyaan Anda tentang stok atau panduan aplikasi.';
 
-          // Helper
           const products = store.products || [];
           const transactions = store.transactions || [];
           const transfers = store.transfers || [];
           const warehouses = store.warehouses || [];
           const categories = store.categories || [];
+          const damagedItems = store.damagedItems || [];
+          const opnames = store.opnames || [];
+          const currentUser = (state && state.currentUser && state.currentUser.name) || 'Kak';
+          const bizName = (store.settings && store.settings.businessName) || 'StokKita';
 
           function getStock(p, wh) {
             if (!p.stocks || typeof p.stocks !== 'object') return 0;
             if (!wh || wh === 'Semua Gudang') return Object.values(p.stocks).reduce((s, v) => s + Number(v || 0), 0);
             return Number(p.stocks[wh] || 0);
           }
-          function formatRp(n) { return 'Rp\u00A0' + rupiah.format(Math.round(n)); }
-          function timeLabel(ms) {
-            const d = Date.now() - ms;
-            if (d < 86400000) return 'hari ini';
-            if (d < 7 * 86400000) return Math.round(d / 86400000) + ' hari lalu';
-            if (d < 30 * 86400000) return Math.round(d / 7 / 86400000) + ' minggu lalu';
-            return Math.round(d / 30 / 86400000) + ' bulan lalu';
+          function formatRp(n) { return 'Rp\u00A0' + rupiah.format(Math.round(n || 0)); }
+
+          function renderQuickButtons(buttons) {
+            if (!buttons || !buttons.length) return '';
+            return `<div class="ai-quick-grid">${buttons.map(b => `<button type="button" class="ai-quick-btn" data-q="${escapeHtml(b.q)}">${b.label}</button>`).join('')}</div>`;
           }
 
-          // ---- TOTAL NILAI STOK ----
-          if (/nilai\s*stok|total\s*stok|harga\s*stok|aset|modal/.test(Q)) {
+          // 1. SALAM & PERCAKAPAN UMUM (GREETINGS)
+          if (/^(hi|hai|halo|hello|hey|hei|pagi|siang|sore|malam|assalamu|sampurasun|tes|test|oi|woi|halo\s*bot|selamat)/i.test(Q)) {
+            const critCount = products.filter(p => getStock(p, 'Semua Gudang') <= (p.min || 5) && p.active !== false).length;
+            const critBadge = critCount > 0 ? `<span class="ai-badge danger">${critCount} Stok Kritis</span>` : `<span class="ai-badge success">Stok Aman</span>`;
+            return `👋 <b>Halo ${escapeHtml(currentUser)}!</b> Senang menyapa Anda di <b>${escapeHtml(bizName)}</b>.<br><br>` +
+              `Status inventori saat ini: ${critBadge} dari total <b>${products.length}</b> jenis produk terdaftar.<br>` +
+              `Ada yang bisa saya bantu analisiskan hari ini? Silakan ketik pertanyaan atau pilih pintasan berikut:` +
+              renderQuickButtons([
+                { label: '⚠️ Stok Kritis', q: 'Stok apa yang hampir habis?' },
+                { label: '🏆 Produk Terlaris', q: 'Barang apa yang paling banyak keluar?' },
+                { label: '💰 Total Nilai Stok', q: 'Berapa total nilai stok saat ini?' },
+                { label: '🏭 Cek Gudang', q: 'Ringkasan stok per gudang' }
+              ]);
+          }
+
+          // 2. TERIMA KASIH
+          if (/terima\s*kasih|makasih|thanks|thank\s*you|tengkyu|matur\s*nuwun|nuhun|tq/i.test(Q)) {
+            return `😊 <b>Sama-sama, ${escapeHtml(currentUser)}!</b><br>Senang bisa membantu kelancaran operasional inventori Anda. Jika butuh data lain, silakan tanyakan kapan saja!` +
+              renderQuickButtons([
+                { label: '📊 Ringkasan Stok', q: 'Ringkasan inventori' },
+                { label: '🕒 Transaksi Terakhir', q: 'Transaksi terbaru' }
+              ]);
+          }
+
+          // 3. APRESIASI / OKE / SIP
+          if (/^(ok|oke|sip|siap|mantap|keren|bagus|good|baik|yoi|siaap)$/i.test(Q)) {
+            return `🚀 <b>Siap, ${escapeHtml(currentUser)}!</b> Asisten AI selalu siap sedia memantau inventori Anda 24/7.`;
+          }
+
+          // 4. IDENTITAS & KEMAMPUAN BOT
+          if (/siapa\s*(kamu|anda)|nama\s*kamu|bisa\s*apa|fungsi\s*(kamu|bot|ai)|kamu\s*siapa/i.test(Q)) {
+            return `🤖 <b>Asisten AI StokKita</b><br>` +
+              `Saya adalah asisten cerdas yang terhubung langsung dengan database inventori <b>${escapeHtml(bizName)}</b> secara real-time.<br><br>` +
+              `Saya dapat membantu Anda:<br>` +
+              `• <b>Analisis Cepat:</b> Menghitung nilai stok, mendeteksi barang kritis, produk terlaris, dan dead stock.<br>` +
+              `• <b>Pencarian Barang:</b> Cari saldo stok barang spesifik per gudang cukup dengan mengetik nama atau SKU.<br>` +
+              `• <b>Panduan Aplikasi:</b> Panduan langkah demi langkah penggunaan fitur (barang masuk, keluar, opname, barcode).<br><br>` +
+              `Coba pilih menu di bawah ini:` +
+              renderQuickButtons([
+                { label: '⚠️ Cek Stok Kritis', q: 'Stok apa yang hampir habis?' },
+                { label: '💰 Nilai Aset Stok', q: 'Total nilai stok?' },
+                { label: '🐌 Produk Slow-Moving', q: 'Produk mana yang belum pernah keluar?' }
+              ]);
+          }
+
+          // 5. PANDUAN PENGGUNAAN / SOP FITUR APLIKASI (HOW-TO)
+          if (/cara\s*(input|catat|tambah|buat)?\s*barang\s*masuk|penerimaan\s*barang|supplier/i.test(Q)) {
+            return `📥 <b>Panduan Mencatat Barang Masuk:</b><br>` +
+              `1. Buka menu <b>Barang Masuk</b>.<br>` +
+              `2. Klik tombol <b>+ Tambah Transaksi</b>.<br>` +
+              `3. Pilih <b>Gudang Tujuan</b> dan masukkan nama <b>Supplier</b>.<br>` +
+              `4. Pilih produk dan masukkan kuantitas (Qty) yang diterima.<br>` +
+              `5. Anda dapat melampirkan foto surat jalan/faktur melalui galeri atau kamera HP.<br>` +
+              `6. Klik <b>Simpan Transaksi</b>. Saldo stok gudang otomatis bertambah!` +
+              renderQuickButtons([
+                { label: '📤 Cara Barang Keluar', q: 'Bagaimana cara catat barang keluar?' },
+                { label: '🕒 Lihat Transaksi Terakhir', q: 'Transaksi terbaru' }
+              ]);
+          }
+
+          if (/cara\s*(input|catat|tambah|buat)?\s*barang\s*keluar|pengeluaran\s*barang|penjualan|surat\s*jalan/i.test(Q)) {
+            return `📤 <b>Panduan Mencatat Barang Keluar:</b><br>` +
+              `1. Buka menu <b>Barang Keluar</b>.<br>` +
+              `2. Klik tombol <b>+ Tambah Transaksi</b>.<br>` +
+              `3. Pilih <b>Gudang Asal</b> dan masukkan nama <b>Pelanggan / Customer</b>.<br>` +
+              `4. Tambahkan produk yang ingin dikeluarkan. Sistem otomatis mengecek kecukupan saldo stok.<br>` +
+              `5. Klik <b>Simpan Transaksi</b>. Saldo stok akan langsung berkurang dan kartu stok terupdate otomatis!` +
+              renderQuickButtons([
+                { label: '🔄 Cara Transfer Stok', q: 'Bagaimana cara transfer stok antar gudang?' },
+                { label: '⚠️ Cek Stok Kritis', q: 'Stok apa yang hampir habis?' }
+              ]);
+          }
+
+          if (/cara\s*(tambah|buat|input|masukkan|bikin)\s*(barang|produk|item|master)/i.test(Q) && !(/masuk|keluar/i.test(Q))) {
+            return `📦 <b>Panduan Menambah Produk Baru:</b><br>` +
+              `1. Masuk ke menu <b>Master Barang</b> di bilah sisi kiri.<br>` +
+              `2. Klik tombol <b>+ Tambah Produk</b> di pojok kanan atas.<br>` +
+              `3. Masukkan <b>SKU</b> (kode unik), <b>Nama Barang</b>, <b>Kategori</b>, <b>Satuan</b>, dan <b>Batas Minimum Stok</b>.<br>` +
+              `4. Masukkan stok awal untuk masing-masing gudang serta harga satuan.<br>` +
+              `5. Klik <b>Simpan Produk</b>. Produk langsung tersinkronisasi ke Google Sheets!` +
+              renderQuickButtons([
+                { label: '🏷️ Cara Cetak Barcode', q: 'Bagaimana cara cetak label barcode?' },
+                { label: '📥 Cara Input Barang Masuk', q: 'Bagaimana cara catat barang masuk?' }
+              ]);
+          }
+
+          if (/cara\s*(transfer|pindah\s*gudang|mutasi\s*antar\s*gudang|mutasi\s*stok)/i.test(Q)) {
+            return `🔄 <b>Panduan Transfer Antar Gudang:</b><br>` +
+              `1. Buka menu <b>Transfer Stok</b>.<br>` +
+              `2. Klik tombol <b>+ Buat Transfer</b>.<br>` +
+              `3. Pilih <b>Gudang Asal</b> (pengirim) dan <b>Gudang Tujuan</b> (penerima).<br>` +
+              `4. Masukkan daftar barang dan jumlah yang ingin dipindahkan.<br>` +
+              `5. Simpan mutasi. Sistem akan otomatis memotong stok dari gudang asal dan menambahkannya ke gudang tujuan.` +
+              renderQuickButtons([
+                { label: '🏭 Ringkasan Gudang', q: 'Ringkasan stok per gudang' }
+              ]);
+          }
+
+          if (/cara\s*(opname|stok\s*opname|audit\s*stok|hitung\s*fisik)/i.test(Q)) {
+            return `📋 <b>Panduan Stok Opname:</b><br>` +
+              `1. Buka menu <b>Stok Opname</b>.<br>` +
+              `2. Klik tombol <b>+ Buat Opname Baru</b> dan pilih gudang yang akan diaudit.<br>` +
+              `3. Masukkan jumlah <b>Stok Fisik</b> riil hasil hitungan fisik di gudang.<br>` +
+              `4. Kolom selisih akan otomatis menghitung selisih surplus (hijau) atau minus (merah).<br>` +
+              `5. Simpan opname untuk menyesuaikan saldo stok pembukuan sistem.` +
+              renderQuickButtons([
+                { label: '📋 Cek Hasil Opname Terakhir', q: 'Hasil stok opname' }
+              ]);
+          }
+
+          if (/cara\s*cetak\s*(barcode|qr|label)|print\s*label|print\s*barcode/i.test(Q)) {
+            return `🏷️ <b>Panduan Cetak Label Barcode / QR Code:</b><br>` +
+              `1. Buka menu <b>Barcode Center</b> dari menu samping, ATAU klik ikon barcode pada baris produk di Master Barang.<br>` +
+              `2. Pilih jenis kode: <b>Barcode (Code 128)</b> atau <b>QR Code</b>.<br>` +
+              `3. Pilih ukuran stiker / kertas (misal: 40x30 mm, 50x30 mm, atau A4 multi-label).<br>` +
+              `4. Klik tombol <b>Cetak Label</b> untuk mencetak ke printer thermal stiker atau printer biasa.` +
+              renderQuickButtons([
+                { label: '📷 Panduan Scanner HP', q: 'Tips scanner kamera barcode' }
+              ]);
+          }
+
+          if (/kamera|scan\s*(barcode|qr)|scanner|izin\s*kamera|kamera\s*error/i.test(Q)) {
+            return `📷 <b>Panduan Scanner Barcode & Kamera HP:</b><br>` +
+              `• <b>Scanner Kamera HP:</b> Saat berada di form transaksi atau pencarian, klik tombol hijau <b>'Buka Kamera (Tab Baru)'</b>. Tab baru bebas dari pembatasan sandbox Google Apps Script sehingga kamera langsung aktif tanpa kendala.<br>` +
+              `• <b>Scanner Fisik USB / Bluetooth:</b> Cukup colokkan scanner ke laptop/PC. Letakkan kursor pada kolom pencarian lalu tembak barcode barang. Kode akan langsung terbaca otomatis!` +
+              renderQuickButtons([
+                { label: '🏷️ Cetak Label Barcode', q: 'Bagaimana cara cetak label barcode?' }
+              ]);
+          }
+
+          if (/cara\s*(tambah|buat)?\s*(user|pengguna|staf|akun)|ganti\s*password|ganti\s*role/i.test(Q)) {
+            return `👥 <b>Panduan Kelola Pengguna:</b><br>` +
+              `1. Masuk menggunakan akun berlevel <b>ADMIN</b>, lalu klik menu <b>Pengguna</b>.<br>` +
+              `2. Klik tombol <b>+ Tambah Pengguna</b>.<br>` +
+              `3. Isi nama lengkap, username, dan kata sandi baru.<br>` +
+              `4. Tentukan peran: <b>ADMIN</b> (kontrol penuh) atau <b>STAFF</b> (hanya operasional input/output gudang).<br>` +
+              `5. Tentukan akses gudang yang diizinkan untuk staf tersebut.` +
+              renderQuickButtons([
+                { label: '🔐 Ganti Sandi Akun', q: 'Bagaimana cara ganti password?' }
+              ]);
+          }
+
+          if (/cara\s*(ekspor|export|unduh|download)\s*(excel|laporan|csv|xlsx)/i.test(Q)) {
+            return `📊 <b>Panduan Ekspor Laporan Excel:</b><br>` +
+              `• Di seluruh tabel utama (Master Barang, Barang Masuk, Barang Keluar, Opname, Audit Log), terdapat tombol hijau <b>Ekspor Excel</b>.<br>` +
+              `• Klik tombol tersebut untuk mengunduh berkas spreadsheet asli berformat <b>.xlsx</b> yang rapi dan siap dicetak atau dilaporkan ke manajemen.` +
+              renderQuickButtons([
+                { label: '💰 Total Nilai Stok', q: 'Berapa total nilai stok saat ini?' }
+              ]);
+          }
+
+          // 6. TOTAL NILAI / VALUASI / ASET STOK
+          if (/nilai\s*stok|total\s*nilai|valuasi|aset|modal|investasi|omset|uang\s*stok/i.test(Q)) {
             const total = products.reduce((sum, p) => {
               const qty = getStock(p, 'Semua Gudang');
               const harga = Number(p.price || p.harga || 0);
               return sum + qty * harga;
             }, 0);
             const totalQty = products.reduce((s, p) => s + getStock(p, 'Semua Gudang'), 0);
-            return `💰 <strong>Total Nilai Stok</strong><br>Terdapat <b>${products.length}</b> jenis produk dengan total <b>${rupiah.format(totalQty)}</b> unit.<br>Estimasi nilai stok saat ini: <b>${formatRp(total)}</b>${total === 0 ? ' — pastikan harga satuan sudah diisi di Master Barang.' : '.'}`;
+
+            let whRows = warehouses.map(w => {
+              const wQty = products.reduce((s, p) => s + getStock(p, w.name), 0);
+              const wVal = products.reduce((s, p) => s + getStock(p, w.name) * Number(p.price || p.harga || 0), 0);
+              return `<tr><td>${escapeHtml(w.name)}</td><td><b>${rupiah.format(wQty)}</b> unit</td><td>${formatRp(wVal)}</td></tr>`;
+            }).join('');
+
+            return `💰 <strong>Valuasi & Nilai Aset Stok</strong><br>` +
+              `• Total Jenis Produk: <b>${products.length}</b> macam<br>` +
+              `• Total Fisik Stok: <b>${rupiah.format(totalQty)}</b> unit<br>` +
+              `• Total Nilai Aset: <b style="color:var(--brand-700);font-size:14px">${formatRp(total)}</b><br><br>` +
+              `📍 <b>Rincian Valuasi Per Gudang:</b>` +
+              `<table class="ai-data-table"><thead><tr><th>Gudang</th><th>Total Unit</th><th>Nilai Aset</th></tr></thead><tbody>${whRows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '⚠️ Cek Stok Kritis', q: 'Stok apa yang hampir habis?' },
+                { label: '🏆 Produk Terlaris', q: 'Barang apa yang paling banyak keluar?' }
+              ]);
           }
 
-          // ---- STOK HAMPIR HABIS / KRITIS ----
-          if (/hampir\s*habis|kritis|minim|menipis|low\s*stock|rendah|kurang/.test(Q)) {
+          // 7. STOK HAMPIR HABIS / KRITIS / REORDER
+          if (/hampir\s*habis|kritis|minim|menipis|low\s*stock|rendah|kurang|reorder|perlu\s*beli|pesan\s*lagi/i.test(Q)) {
             const low = products.filter(p => {
               const qty = getStock(p, 'Semua Gudang');
               const min = Number(p.min || p.minStock || 0);
               return qty <= (min > 0 ? min : 5) && p.active !== false;
-            }).sort((a, b) => getStock(a, 'Semua Gudang') - getStock(b, 'Semua Gudang')).slice(0, 10);
-            if (!low.length) return '✅ Tidak ada produk dengan stok kritis saat ini. Semua barang masih aman!';
-            const rows = low.map(p => `<tr><td>${escapeHtml(p.name || p.nama)}</td><td style="color:var(--danger);font-weight:700">${getStock(p,'Semua Gudang')}</td><td>${escapeHtml(p.min || 0)}</td></tr>`).join('');
-            return `⚠️ <strong>${low.length} Produk Stok Kritis:</strong><table class="ai-data-table"><thead><tr><th>Produk</th><th>Stok</th><th>Min</th></tr></thead><tbody>${rows}</tbody></table>`;
+            }).sort((a, b) => getStock(a, 'Semua Gudang') - getStock(b, 'Semua Gudang'));
+
+            if (!low.length) {
+              return `✅ <b>Semua Stok Aman Terkendali!</b><br>` +
+                `Saat ini tidak ada produk yang berada di bawah batas minimum stok.` +
+                renderQuickButtons([
+                  { label: '💰 Cek Nilai Stok', q: 'Total nilai stok saat ini?' },
+                  { label: '🐌 Cek Dead Stock', q: 'Produk yang belum pernah keluar' }
+                ]);
+            }
+
+            const rows = low.slice(0, 10).map(p => {
+              const totalQ = getStock(p, 'Semua Gudang');
+              const badgeClass = totalQ === 0 ? 'danger' : 'info';
+              const label = totalQ === 0 ? 'Habis (0)' : `${totalQ} ${escapeHtml(p.unit || 'pcs')}`;
+              return `<tr><td><b>${escapeHtml(p.name || p.nama)}</b><br><small style="color:var(--ink-500)">SKU: ${escapeHtml(p.sku || '-')}</small></td>` +
+                `<td><span class="ai-badge ${badgeClass}">${label}</span></td><td>${escapeHtml(p.min || 0)}</td></tr>`;
+            }).join('');
+
+            return `⚠️ <b>Ditemukan ${low.length} Produk dengan Stok Kritis:</b><br>` +
+              `<small>Disarankan untuk segera membuat pesanan pembelian (Barang Masuk).</small>` +
+              `<table class="ai-data-table"><thead><tr><th>Produk</th><th>Sisa Stok</th><th>Batas Min</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '📥 Panduan Input Barang Masuk', q: 'Cara input barang masuk' },
+                { label: '📦 Produk Stok Nol', q: 'Barang apa yang stoknya nol?' }
+              ]);
           }
 
-          // ---- STOK NOL / HABIS ----
-          if (/stok\s*(nol|habis|kosong|0)|barang\s*habis/.test(Q)) {
+          // 8. STOK KOSONG / STOK NOL
+          if (/stok\s*(nol|habis|kosong|0)|barang\s*(habis|kosong)|out\s*of\s*stock/i.test(Q)) {
             const empty = products.filter(p => getStock(p, 'Semua Gudang') <= 0 && p.active !== false);
-            if (!empty.length) return '✅ Tidak ada produk dengan stok nol saat ini.';
-            const rows = empty.slice(0, 10).map(p => `<tr><td>${escapeHtml(p.name || p.nama)}</td><td>${escapeHtml(p.sku || '-')}</td><td>${escapeHtml(p.category || '-')}</td></tr>`).join('');
-            return `📦 <strong>${empty.length} Produk Stok Nol:</strong><table class="ai-data-table"><thead><tr><th>Produk</th><th>SKU</th><th>Kategori</th></tr></thead><tbody>${rows}</tbody></table>`;
+            if (!empty.length) {
+              return `✅ <b>Hebat! Tidak ada produk yang stoknya 0 (kosong).</b> Semua produk masih memiliki persediaan.` +
+                renderQuickButtons([
+                  { label: '⚠️ Cek Stok Menipis', q: 'Stok apa yang hampir habis?' }
+                ]);
+            }
+            const rows = empty.slice(0, 10).map(p =>
+              `<tr><td><b>${escapeHtml(p.name || p.nama)}</b></td><td>${escapeHtml(p.sku || '-')}</td><td>${escapeHtml(p.category || 'Umum')}</td></tr>`
+            ).join('');
+            return `🔴 <b>Terdapat ${empty.length} Produk Habis Total (Stok Nol):</b>` +
+              `<table class="ai-data-table"><thead><tr><th>Nama Barang</th><th>SKU</th><th>Kategori</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '📥 Cara Input Restock', q: 'Cara input barang masuk' }
+              ]);
           }
 
-          // ---- PRODUK TERLARIS / PALING BANYAK KELUAR ----
-          if (/terlaris|paling\s*banyak\s*keluar|top\s*produk|penjualan\s*terbanyak|barang\s*paling\s*laku/.test(Q)) {
+          // 9. PRODUK TERLARIS / FAST MOVING
+          if (/terlaris|paling\s*(laku|banyak\s*keluar|laris|populer)|fast\s*moving|top\s*(produk|barang|penjualan)|juara/i.test(Q)) {
             const outTx = transactions.filter(t => (t.type || '').toLowerCase().includes('keluar'));
             const counter = {};
+            const unitMap = {};
             outTx.forEach(t => {
               const nama = t.nama_barang || t.name || t.product || '';
               const qty = Number(t.qty || t.quantity || 1);
-              if (nama) counter[nama] = (counter[nama] || 0) + qty;
+              if (nama) {
+                counter[nama] = (counter[nama] || 0) + qty;
+                if (t.satuan || t.unit) unitMap[nama] = t.satuan || t.unit;
+              }
             });
-            const sorted = Object.entries(counter).sort((a, b) => b[1] - a[1]).slice(0, 8);
-            if (!sorted.length) return '📊 Belum ada data barang keluar yang tercatat.';
-            const rows = sorted.map(([n, q]) => `<tr><td>${escapeHtml(n)}</td><td><b>${rupiah.format(q)}</b></td></tr>`).join('');
-            return `🏆 <strong>Produk Paling Banyak Keluar:</strong><table class="ai-data-table"><thead><tr><th>Produk</th><th>Total Keluar</th></tr></thead><tbody>${rows}</tbody></table>`;
+            const sorted = Object.entries(counter).sort((a, b) => b[1] - a[1]).slice(0, 7);
+            if (!sorted.length) return '📊 Belum ada riwayat transaksi barang keluar yang tercatat untuk dianalisis.';
+
+            const rows = sorted.map(([n, q], idx) => {
+              const medali = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : `${idx + 1}.`));
+              return `<tr><td>${medali} <b>${escapeHtml(n)}</b></td><td><b style="color:var(--brand-700)">${rupiah.format(q)}</b> ${escapeHtml(unitMap[n] || 'unit')}</td></tr>`;
+            }).join('');
+
+            return `🏆 <strong>Peringkat Produk Terlaris (Paling Banyak Keluar):</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>Nama Produk</th><th>Total Keluar</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '⚠️ Cek Ketersediaan Stok', q: 'Stok apa yang hampir habis?' },
+                { label: '🐌 Cek Barang Macet', q: 'Produk mana yang belum pernah keluar?' }
+              ]);
           }
 
-          // ---- PRODUK SLOW MOVING / BELUM PERNAH KELUAR ----
-          if (/slow\s*moving|belum\s*pernah\s*keluar|tidak\s*laku|diam|tidak\s*bergerak/.test(Q)) {
+          // 10. PRODUK SLOW MOVING / DEAD STOCK
+          if (/slow\s*moving|dead\s*stock|barang\s*mati|tidak\s*laku|belum\s*(pernah\s*)?keluar|mengendap|diam|macet/i.test(Q)) {
             const outNames = new Set(transactions.filter(t => (t.type || '').toLowerCase().includes('keluar')).map(t => (t.nama_barang || t.name || '').toLowerCase()));
-            const slow = products.filter(p => !outNames.has((p.name || p.nama || '').toLowerCase()) && p.active !== false);
-            if (!slow.length) return '✅ Semua produk aktif sudah pernah keluar!';
-            const rows = slow.slice(0, 10).map(p => `<tr><td>${escapeHtml(p.name || p.nama)}</td><td>${escapeHtml(p.sku || '-')}</td><td>${getStock(p,'Semua Gudang')}</td></tr>`).join('');
-            return `🐌 <strong>${slow.length} Produk Slow-Moving (belum pernah keluar):</strong><table class="ai-data-table"><thead><tr><th>Produk</th><th>SKU</th><th>Stok</th></tr></thead><tbody>${rows}</tbody></table>`;
+            const slow = products.filter(p => !outNames.has((p.name || p.nama || '').toLowerCase()) && p.active !== false && getStock(p, 'Semua Gudang') > 0);
+
+            if (!slow.length) {
+              return '✅ <b>Semua produk aktif yang memiliki stok sudah pernah mencatat transaksi keluar!</b> Inventori bergerak dengan baik.';
+            }
+
+            const trappedValue = slow.reduce((sum, p) => sum + getStock(p, 'Semua Gudang') * Number(p.price || p.harga || 0), 0);
+
+            const rows = slow.slice(0, 8).map(p => {
+              const q = getStock(p, 'Semua Gudang');
+              const val = q * Number(p.price || p.harga || 0);
+              return `<tr><td><b>${escapeHtml(p.name || p.nama)}</b></td><td>${q} ${escapeHtml(p.unit || 'unit')}</td><td>${formatRp(val)}</td></tr>`;
+            }).join('');
+
+            return `🐌 <b>Ditemukan ${slow.length} Produk Slow-Moving (Belum Pernah Keluar):</b><br>` +
+              `Total dana yang mengendap: <b style="color:var(--danger)">${formatRp(trappedValue)}</b><br>` +
+              `<table class="ai-data-table"><thead><tr><th>Produk</th><th>Stok</th><th>Nilai Tertahan</th></tr></thead><tbody>${rows}</tbody></table>` +
+              `💡 <em>Saran: Buat promo khusus atau diskon untuk mencairkan produk di atas menjadi kas!</em>` +
+              renderQuickButtons([
+                { label: '🏆 Cek Produk Terlaris', q: 'Produk paling banyak keluar' }
+              ]);
           }
 
-          // ---- RINGKASAN GUDANG ----
-          if (/gudang|warehouse|lokasi\s*stok/.test(Q)) {
-            if (!warehouses.length) return 'Belum ada data gudang.';
+          // 11. STATUS & RINGKASAN GUDANG
+          if (/gudang|warehouse|lokasi\s*stok|cabang/i.test(Q)) {
+            if (!warehouses.length) return 'Belum ada master data gudang yang didaftarkan.';
             const rows = warehouses.map(w => {
               const totalStok = products.reduce((s, p) => s + getStock(p, w.name), 0);
               const jenis = products.filter(p => getStock(p, w.name) > 0).length;
-              return `<tr><td>${escapeHtml(w.name)}</td><td>${rupiah.format(totalStok)}</td><td>${jenis}</td></tr>`;
+              return `<tr><td>🏭 <b>${escapeHtml(w.name)}</b><br><small style="color:var(--ink-500)">${escapeHtml(w.address || 'Gudang Fisik')}</small></td>` +
+                `<td><b>${rupiah.format(totalStok)}</b> unit</td><td>${jenis} jenis</td></tr>`;
             }).join('');
-            return `🏭 <strong>Ringkasan Per Gudang:</strong><table class="ai-data-table"><thead><tr><th>Gudang</th><th>Total Qty</th><th>Jenis Barang</th></tr></thead><tbody>${rows}</tbody></table>`;
+            return `🏭 <strong>Ringkasan Kapasitas Seluruh Gudang (${warehouses.length} Gudang):</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>Gudang</th><th>Total Unit</th><th>Item Berstok</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '🔄 Cara Transfer Gudang', q: 'Cara transfer antar gudang' },
+                { label: '💰 Nilai Aset per Gudang', q: 'Total nilai stok saat ini?' }
+              ]);
           }
 
-          // ---- TRANSAKSI TERBARU ----
-          if (/transaksi\s*terbaru|aktivitas\s*terbaru|terakhir\s*(masuk|keluar)|last\s*transaction/.test(Q)) {
+          // 12. TRANSAKSI TERBARU
+          if (/transaksi\s*terbaru|aktivitas\s*terbaru|terakhir\s*(masuk|keluar)|riwayat\s*transaksi|mutasi\s*terbaru/i.test(Q)) {
             const recent = transactions.slice(0, 5);
-            if (!recent.length) return 'Belum ada transaksi yang dicatat.';
-            const rows = recent.map(t => `<tr><td>${escapeHtml(t.transaction_no || t.no || '-')}</td><td>${escapeHtml(t.type || '-')}</td><td>${escapeHtml(t.nama_barang || t.name || '-')}</td><td>${escapeHtml(t.date || '-')}</td></tr>`).join('');
-            return `🕒 <strong>5 Transaksi Terbaru:</strong><table class="ai-data-table"><thead><tr><th>No</th><th>Tipe</th><th>Barang</th><th>Tanggal</th></tr></thead><tbody>${rows}</tbody></table>`;
+            if (!recent.length) return 'Belum ada transaksi barang yang tercatat.';
+            const rows = recent.map(t => {
+              const isOut = String(t.type || '').toLowerCase().includes('keluar');
+              const badge = isOut ? '<span class="ai-badge danger">KELUAR</span>' : '<span class="ai-badge success">MASUK</span>';
+              return `<tr><td>${badge}<br><small>${escapeHtml(t.transaction_no || t.no || '-')}</small></td>` +
+                `<td><b>${escapeHtml(t.nama_barang || t.name || '-')}</b><br><small>${t.qty || 1} ${escapeHtml(t.satuan || 'Pcs')}</small></td>` +
+                `<td><small>${escapeHtml(t.date || '-')}</small></td></tr>`;
+            }).join('');
+            return `🕒 <strong>5 Transaksi Mutasi Terkini:</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>Tipe & No</th><th>Barang</th><th>Tanggal</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '📥 Catat Barang Masuk', q: 'Cara input barang masuk' },
+                { label: '📤 Catat Barang Keluar', q: 'Cara input barang keluar' }
+              ]);
           }
 
-          // ---- CARI BARANG SPESIFIK ----
-          const searchKeyword = Q.replace(/^(cari|temukan|stok|berapa\s*stok|stok\s*barang|cek\s*stok)\s*/i, '').trim();
-          if (searchKeyword.length > 2) {
-            const found = products.filter(p => {
+          // 13. STOK OPNAME & SELISIH
+          if (/opname|selisih|audit|cek\s*fisik/i.test(Q)) {
+            if (!opnames.length) return '📋 Belum ada riwayat sesi stok opname yang disimpan.';
+            const recentOp = opnames.slice(0, 5);
+            const rows = recentOp.map(op => {
+              const diff = Number(op.selisih || 0);
+              const diffColor = diff === 0 ? 'var(--ink-500)' : (diff > 0 ? '#15803d' : '#b91c1c');
+              const diffSign = diff > 0 ? `+${diff}` : `${diff}`;
+              return `<tr><td><b>${escapeHtml(op.transaction_no || op.no || '-')}</b><br><small>${escapeHtml(op.warehouse || '-')}</small></td>` +
+                `<td>${escapeHtml(op.nama_barang || op.name || '-')}</td>` +
+                `<td style="color:${diffColor};font-weight:700">${diffSign}</td></tr>`;
+            }).join('');
+            return `📋 <strong>Riwayat Hasil Stok Opname Terkini:</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>No & Gudang</th><th>Barang</th><th>Selisih</th></tr></thead><tbody>${rows}</tbody></table>` +
+              renderQuickButtons([
+                { label: '📋 Panduan Cara Opname', q: 'Cara stok opname' }
+              ]);
+          }
+
+          // 14. BARANG RUSAK / CACAT
+          if (/rusak|damaged|cacat|hilang|retur/i.test(Q)) {
+            if (!damagedItems.length) return '✅ Tidak ada catatan barang rusak atau cacat dalam sistem.';
+            const rows = damagedItems.slice(0, 5).map(d =>
+              `<tr><td><b>${escapeHtml(d.productName || d.name || '-')}</b></td><td>${d.qty || 1}</td><td>${escapeHtml(d.issueType || d.notes || 'Rusak')}</td></tr>`
+            ).join('');
+            return `🛠️ <strong>Catatan Barang Rusak / Bermasalah:</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>Produk</th><th>Qty</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`;
+          }
+
+          // 15. KATEGORI BARANG
+          if (/kategori|category|kelompok\s*barang/i.test(Q)) {
+            if (!categories.length) return 'Belum ada kategori yang terdaftar.';
+            const rows = categories.map(c => {
+              const count = products.filter(p => (p.category || p.kategori || '').toLowerCase() === (c.name || '').toLowerCase()).length;
+              return `<tr><td>🏷️ <b>${escapeHtml(c.name)}</b></td><td><b>${count}</b> produk</td></tr>`;
+            }).join('');
+            return `🏷️ <strong>Daftar Kategori Produk (${categories.length}):</strong>` +
+              `<table class="ai-data-table"><thead><tr><th>Kategori</th><th>Jumlah Item</th></tr></thead><tbody>${rows}</tbody></table>`;
+          }
+
+          // 16. PENCARIAN CERDAS BARANG SPESIFIK (SMART FUZZY SEARCH)
+          let cleanQ = Q;
+          let prevQ = '';
+          while (cleanQ !== prevQ) {
+            prevQ = cleanQ;
+            cleanQ = cleanQ.replace(/^(stok|berapa|cek|cari|ada|apakah\s*ada|info|harga|produk|barang|lihat|tolong|mau\s*tanya)\s*/i, '').trim();
+          }
+          if (cleanQ.length >= 2) {
+            const matches = products.filter(p => {
               const n = (p.name || p.nama || '').toLowerCase();
               const s = (p.sku || '').toLowerCase();
-              return n.includes(searchKeyword) || s.includes(searchKeyword);
+              const b = (p.barcode || '').toLowerCase();
+              const c = (p.category || '').toLowerCase();
+              return n.includes(cleanQ) || s.includes(cleanQ) || b.includes(cleanQ) || c.includes(cleanQ) ||
+                     cleanQ.split(/\s+/).every(word => n.includes(word) || s.includes(word));
             });
-            if (found.length) {
-              const rows = found.slice(0, 8).map(p => {
-                const totalQty = getStock(p, 'Semua Gudang');
-                const whDetail = Object.entries(p.stocks || {}).map(([k, v]) => `${k}:${v}`).join(', ');
-                return `<tr><td>${escapeHtml(p.name || p.nama)}</td><td>${escapeHtml(p.sku || '-')}</td><td><b>${totalQty}</b></td><td style="font-size:11px;color:var(--ink-500)">${escapeHtml(whDetail || '-')}</td></tr>`;
+
+            if (matches.length === 1) {
+              const p = matches[0];
+              const totalStok = getStock(p, 'Semua Gudang');
+              const minStok = Number(p.min || p.minStock || 0);
+              const isCrit = totalStok <= (minStok > 0 ? minStok : 5);
+              const badge = isCrit ? `<span class="ai-badge danger">⚠️ Stok Kritis</span>` : `<span class="ai-badge success">✅ Stok Aman</span>`;
+
+              const whBreakdown = Object.entries(p.stocks || {}).map(([wh, val]) =>
+                `• ${escapeHtml(wh)}: <b>${val}</b> ${escapeHtml(p.unit || 'unit')}`
+              ).join('<br>') || 'Stok belum dialokasikan ke gudang.';
+
+              const hargaVal = Number(p.price || p.harga || 0);
+
+              return `<div class="ai-prod-card">` +
+                `<div class="ai-prod-title">🔍 ${escapeHtml(p.name || p.nama)}</div>` +
+                `<div class="ai-prod-meta">SKU: <code>${escapeHtml(p.sku || '-')}</code> • Kategori: <b>${escapeHtml(p.category || 'Umum')}</b></div>` +
+                `<div style="margin:8px 0;display:flex;align-items:center;gap:8px">` +
+                  `<span style="font-size:16px;font-weight:800;color:var(--brand-700)">${totalStok} ${escapeHtml(p.unit || 'pcs')}</span> ${badge}` +
+                `</div>` +
+                `<div style="font-size:12px;margin:6px 0;color:var(--ink-700);line-height:1.6">` +
+                  `📍 <b>Sebaran Gudang:</b><br>${whBreakdown}<br>` +
+                  `💰 Harga Satuan: <b>${formatRp(hargaVal)}</b> (Nilai Aset: <b>${formatRp(totalStok * hargaVal)}</b>)` +
+                `</div>` +
+              `</div>` +
+              renderQuickButtons([
+                { label: '⚠️ Cek Barang Kritis Lainnya', q: 'Stok apa yang hampir habis?' },
+                { label: '📊 Ringkasan Gudang', q: 'Ringkasan stok per gudang' }
+              ]);
+            } else if (matches.length > 1) {
+              const rows = matches.slice(0, 6).map(p => {
+                const totalQ = getStock(p, 'Semua Gudang');
+                const isCrit = totalQ <= Number(p.min || 5);
+                const color = isCrit ? 'color:var(--danger)' : 'color:var(--brand-700)';
+                return `<tr><td><b>${escapeHtml(p.name || p.nama)}</b><br><small>SKU: ${escapeHtml(p.sku || '-')}</small></td>` +
+                  `<td><b style="${color}">${totalQ}</b> ${escapeHtml(p.unit || 'unit')}</td><td>${escapeHtml(p.category || '-')}</td></tr>`;
               }).join('');
-              return `🔍 <strong>Ditemukan ${found.length} produk:</strong><table class="ai-data-table"><thead><tr><th>Produk</th><th>SKU</th><th>Total</th><th>Per Gudang</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+              return `🔍 <b>Ditemukan ${matches.length} produk yang cocok dengan pencarian "${escapeHtml(cleanQ)}":</b>` +
+                `<table class="ai-data-table"><thead><tr><th>Produk</th><th>Stok</th><th>Kategori</th></tr></thead><tbody>${rows}</tbody></table>` +
+                `<small style="color:var(--ink-500)">Ketik nama barang yang lebih spesifik untuk melihat rincian per gudang.</small>`;
             }
           }
 
-          // ---- STATISTIK UMUM / DASHBOARD ----
-          if (/statistik|ringkasan|summary|overview|dashboard|laporan\s*singkat|rekap/.test(Q)) {
-            const totalProd = products.length;
-            const totalStok = products.reduce((s, p) => s + getStock(p, 'Semua Gudang'), 0);
-            const lowCount = products.filter(p => { const q = getStock(p,'Semua Gudang'); const m = Number(p.min||p.minStock||0); return q <= (m > 0 ? m : 5); }).length;
-            const txIn = transactions.filter(t => (t.type||'').toLowerCase().includes('masuk')).length;
-            const txOut = transactions.filter(t => (t.type||'').toLowerCase().includes('keluar')).length;
-            const nilaiTotal = products.reduce((sum, p) => sum + getStock(p,'Semua Gudang') * Number(p.price||p.harga||0), 0);
-            return `📊 <strong>Ringkasan Inventori StokKita</strong><br><br>
-📦 <b>${totalProd}</b> jenis produk terdaftar<br>
-🗂️ <b>${rupiah.format(totalStok)}</b> unit total stok<br>
-💰 <b>${formatRp(nilaiTotal)}</b> estimasi nilai stok<br>
-⚠️ <b>${lowCount}</b> produk stok kritis<br>
-✅ <b>${txIn}</b> transaksi barang masuk<br>
-📤 <b>${txOut}</b> transaksi barang keluar<br>
-🏭 <b>${warehouses.length}</b> gudang aktif`;
-          }
-
-          // ---- KATEGORI ----
-          if (/kategori|category|kelompok\s*barang/.test(Q)) {
-            if (!categories.length) return 'Belum ada kategori yang terdaftar.';
-            const rows = categories.map(c => {
-              const count = products.filter(p => (p.category || p.kategori || '') === c.name).length;
-              return `<tr><td>${escapeHtml(c.name)}</td><td>${count}</td></tr>`;
-            }).join('');
-            return `🏷️ <strong>Daftar Kategori (${categories.length}):</strong><table class="ai-data-table"><thead><tr><th>Kategori</th><th>Jumlah Produk</th></tr></thead><tbody>${rows}</tbody></table>`;
-          }
-
-          // ---- TRANSFER TERBARU ----
-          if (/transfer|pindah\s*stok|mutasi\s*antar\s*gudang/.test(Q)) {
-            if (!transfers.length) return 'Belum ada transfer stok yang dicatat.';
-            const rows = transfers.slice(0, 5).map(t => `<tr><td>${escapeHtml(t.transaction_no || t.no || '-')}</td><td>${escapeHtml(t.from_warehouse || t.dari || '-')}</td><td>${escapeHtml(t.to_warehouse || t.ke || '-')}</td><td>${escapeHtml(t.date || '-')}</td><td>${escapeHtml(t.status || '-')}</td></tr>`).join('');
-            return `🔄 <strong>5 Transfer Terbaru:</strong><table class="ai-data-table"><thead><tr><th>No</th><th>Dari</th><th>Ke</th><th>Tanggal</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
-          }
-
-          // ---- DEFAULT / TIDAK DIMENGERTI ----
-          return `🤖 Maaf, saya belum bisa menjawab pertanyaan tersebut secara spesifik. Coba tanyakan:<br>
-• <em>Stok apa yang hampir habis?</em><br>
-• <em>Cari [nama barang]</em><br>
-• <em>Barang paling banyak keluar?</em><br>
-• <em>Ringkasan inventori</em><br>
-• <em>Total nilai stok?</em>`;
+          // 17. SMART CONTEXTUAL FALLBACK
+          const critCount = products.filter(p => getStock(p, 'Semua Gudang') <= (p.min || 5) && p.active !== false).length;
+          return `🤖 <b>Saya siap membantu Anda seputar stok ${escapeHtml(bizName)}!</b><br><br>` +
+            `Saya belum menemukan jawaban langsung untuk kata kunci <em>"${escapeHtml(q)}"</em>.<br>` +
+            `Coba tanyakan dengan salah satu topik berikut:` +
+            renderQuickButtons([
+              { label: '⚠️ Stok Kritis (' + critCount + ')', q: 'Stok apa yang hampir habis?' },
+              { label: '🏆 Produk Terlaris', q: 'Barang apa yang paling banyak keluar?' },
+              { label: '💰 Total Nilai Stok', q: 'Berapa total nilai stok saat ini?' },
+              { label: '🏭 Ringkasan Gudang', q: 'Ringkasan stok per gudang' },
+              { label: '📦 Cara Input Barang', q: 'Cara input barang masuk' }
+            ]);
         }
 
         // ── Chat history (session) ─────────────────────────────────────
@@ -16765,89 +17122,27 @@
 
         function sendChat(q) {
           if (!q || !q.trim()) return;
-          recordQuestion(q);
-          appendMessage(q, 'user');
-          chatHistory.push({ role: 'user', text: q });
+          const query = q.trim();
+          recordQuestion(query);
+          appendMessage(query, 'user');
+          chatHistory.push({ role: 'user', text: query });
 
           showTyping();
 
-          const hasApiKey = store.settings && store.settings.geminiApiKey && String(store.settings.geminiApiKey).trim().length > 10;
-
-          if (hasApiKey) {
-            // Buat rangkuman ringkas inventori untuk konteks Gemini AI
-            const lowProds = (store.products || []).filter(p => {
-              const qty = getStock(p, 'Semua Gudang');
-              const min = Number(p.min || p.minStock || 0);
-              return qty <= (min > 0 ? min : 5);
-            }).slice(0, 10).map(p => `${p.name} (SKU: ${p.sku}, Stok: ${getStock(p, 'Semua Gudang')}, Min: ${p.min || 0})`).join('; ');
-
-            const whList = (store.warehouses || []).map(w => w.name).join(', ');
-            const topProds = (store.products || []).slice(0, 15).map(p => `${p.name}: ${getStock(p, 'Semua Gudang')} ${p.unit || 'unit'}`).join('; ');
-
-            const stockContext = `Total Jenis Produk: ${(store.products || []).length}\n` +
-              `Gudang: ${whList || 'Gudang Utama'}\n` +
-              `Produk Stok Kritis: ${lowProds || 'Tidak ada'}\n` +
-              `Sampel Stok Produk: ${topProds}\n` +
-              `Total Transaksi Tercatat: ${(store.transactions || []).length}`;
-
-            const handleAiResponse = (res) => {
-              hideTyping();
-              if (res && res.status === 'success' && res.answer) {
-                let formatted = escapeHtml(res.answer)
-                  .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-                  .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                  .replace(/\n\s*[\*\-]\s+(.*)/g, '<br>• $1')
-                  .replace(/\n\n/g, '<br><br>')
-                  .replace(/\n/g, '<br>');
-                appendMessage(formatted, 'bot');
-                chatHistory.push({ role: 'bot', text: res.answer });
-              } else {
-                const fallbackAns = analyzeQuery(q);
-                appendMessage(fallbackAns, 'bot');
-                chatHistory.push({ role: 'bot', text: fallbackAns });
-              }
-              renderFAQChips();
-            };
-
-            if (isAppsScriptEnv && typeof google !== 'undefined' && google.script && google.script.run) {
-              google.script.run
-                .withSuccessHandler(handleAiResponse)
-                .withFailureHandler(() => {
-                  hideTyping();
-                  const fallbackAns = analyzeQuery(q);
-                  appendMessage(fallbackAns, 'bot');
-                  chatHistory.push({ role: 'bot', text: fallbackAns });
-                  renderFAQChips();
-                })
-                .apiAskGemini(q, stockContext);
-              return;
-            } else if (storedSheetsUrl) {
-              fetch(storedSheetsUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'askGemini', query: q, stockContext })
-              })
-              .then(r => r.json())
-              .then(handleAiResponse)
-              .catch(() => {
-                hideTyping();
-                const fallbackAns = analyzeQuery(q);
-                appendMessage(fallbackAns, 'bot');
-                chatHistory.push({ role: 'bot', text: fallbackAns });
-                renderFAQChips();
-              });
-              return;
-            }
-          }
-
-          // Analisis cepat offline / fallback
+          // Respon super cepat dan cerdas (80ms - 130ms agar animasi tetap natural)
           setTimeout(() => {
-            hideTyping();
-            const answer = analyzeQuery(q);
-            appendMessage(answer, 'bot');
-            chatHistory.push({ role: 'bot', text: answer });
-            renderFAQChips();
-          }, 350 + Math.random() * 200);
+            try {
+              hideTyping();
+              const answer = analyzeQuery(query);
+              appendMessage(answer, 'bot');
+              chatHistory.push({ role: 'bot', text: answer });
+              renderFAQChips();
+            } catch (err) {
+              hideTyping();
+              console.error('AI Chat Error:', err);
+              appendMessage('Maaf, ada kendala saat menganalisis: ' + escapeHtml(err.message), 'bot');
+            }
+          }, 80 + Math.random() * 50);
         }
 
         function renderFAQChips() {
@@ -16960,6 +17255,12 @@
           document.getElementById('aiFAQChips').addEventListener('click', e => {
             const chip = e.target.closest('.faq-chip');
             if (chip) sendChat(chip.dataset.q);
+          });
+
+          // Quick action buttons inside bot bubble (delegasi)
+          document.getElementById('aiChatMessages').addEventListener('click', e => {
+            const btn = e.target.closest('.ai-quick-btn');
+            if (btn && btn.dataset.q) sendChat(btn.dataset.q);
           });
         }
 
