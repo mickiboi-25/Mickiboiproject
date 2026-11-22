@@ -5031,6 +5031,12 @@
 
         // Seluruh data kini disimpan di Google Sheets, tidak lagi disimpan ke localStorage
         if (isManual) showToast('Sinkronisasi Sukses', 'Seluruh data berhasil diambil langsung dari database Google Spreadsheet.');
+        // Cegah re-render paksa jika user sedang di menu Pengaturan atau sedang aktif mengetik di input form
+        const isEditingForm = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+        if (!isManual && (state.route === 'settings' || isEditingForm)) {
+          updateHeader();
+          return;
+        }
         render();
       }
 
@@ -5657,13 +5663,13 @@
           </div>
           <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
             ${isDataUrl ? `
-              <a href="${escapeHtml(photoUrl)}" download="${fileName}" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="(()=>{ const a = document.createElement('a'); a.href='${escapeHtml(photoUrl)}'; a.download='${fileName}'; a.click(); })()" style="display:inline-flex;align-items:center;gap:6px;">
                 ${icon('download')} Unduh Foto
-              </a>
+              </button>
             ` : `
-              <a href="${escapeHtml(photoUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="window.open('${escapeHtml(photoUrl)}', '_blank', 'noopener,noreferrer')" style="display:inline-flex;align-items:center;gap:6px;">
                 ${icon('download')} Buka Ukuran Penuh
-              </a>
+              </button>
             `}
             <button type="button" class="btn btn-primary" data-action="close-modal">Tutup</button>
           </div>
@@ -10463,7 +10469,7 @@
                         </button>
                       </div>
                       <p style="font-size:11px;color:var(--ink-500);margin:6px 0 0">
-                        Belum punya API Key? Dapatkan secara gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--brand-600);font-weight:600;text-decoration:underline">Google AI Studio (aistudio.google.com)</a>. Kunci disimpan aman pada spreadsheet database Anda.
+                        Belum punya API Key? Dapatkan secara gratis di <button type="button" onclick="window.open('https://aistudio.google.com/app/apikey', '_blank', 'noopener,noreferrer')" style="background:none;border:none;padding:0;color:var(--brand-600);font-weight:600;text-decoration:underline;cursor:pointer;font-size:inherit;font-family:inherit">Google AI Studio (aistudio.google.com)</button>. Kunci disimpan aman pada spreadsheet database Anda.
                       </p>
                     </div>
                     <div class="field">
@@ -10582,7 +10588,6 @@
           audit: auditPage, settings: settingsPage, history: historyPage
         };
         document.getElementById('appContent').innerHTML = (pages[state.route] || dashboardPage)();
-        window.scrollTo({ top: 0, behavior: 'instant' });
       }
 
       function navigate(route) {
@@ -10598,6 +10603,7 @@
         state.route = allowed.includes(route) ? route : 'dashboard';
         closeSidebar();
         render();
+        window.scrollTo({ top: 0, behavior: 'instant' });
       }
 
       function closeSidebar() {
@@ -12575,27 +12581,6 @@
             minStock: minVal,
             stocks: initialStocks,
             active,
-            photo: state.productPhoto || '',
-            foto: state.productPhoto || ''
-          });
-          addAuditLog('CREATE', 'Master Barang', sku, `Menambahkan barang baru: ${name}`);
-          showToast('Barang Ditambahkan', `Barang ${name} berhasil dibuat.`);
-        }
-
-        state.productPhoto = '';
-        saveStore();
-        closeModal();
-        render();
-      }
-
-      function executeDeleteProduct(productId) {
-        const prod = store.products.find(p => p.id === productId);
-        if (!prod) return;
-
-        const currentStock = totalStock(prod);
-        const hasActiveStock = currentStock > 0;
-
-        openModal(`
           <div class="modal-header">
             <div>
               <h2 id="modalTitle" style="color:var(--danger)">Hapus Master Barang</h2>
@@ -12642,12 +12627,12 @@
       // ==========================================
       function openEditTransactionModal(txIdOrNo) {
         if (state.role === 'STAFF') {
-          return showToast('Akses Dibatasi', 'Staf tidak memiliki hak akses untuk mengubah transaksi.', true);
+          return showToast('Akses Dibatasi', 'Staf tidak memiliki hak akses untuk mengedit transaksi.', true);
         }
-        const tx = store.transactions.find(t => t.no === txIdOrNo || t.id === txIdOrNo);
-        if (!tx) return;
+        const tx = store.transactions.find(t => t.no === txIdOrNo || t.id === txIdOrNo || t.transaction_no === txIdOrNo);
+        if (!tx) return showToast('Data Tidak Ditemukan', 'Transaksi tidak ditemukan.', true);
 
-        state.editTxTargetNo = tx.no;
+        state.editTxTargetNo = tx.no || tx.transaction_no;
         state.editTxType = tx.type;
         state.editTxWarehouse = tx.warehouse;
         state.editTxDate = tx.date && tx.date.includes('/')
@@ -14237,7 +14222,7 @@
               </div>
             </div>
             <ol style="padding-left:18px;display:grid;gap:10px;font-size:13px;line-height:1.5">
-              <li>Buka <strong>Google Sheets</strong> Anda di browser (<a href="https://sheets.new" target="_blank" style="color:var(--brand-600);text-decoration:underline">sheets.new</a> atau sheet yang sedang aktif).</li>
+              <li>Buka <strong>Google Sheets</strong> Anda di browser (<button type="button" onclick="window.open('https://sheets.new', '_blank', 'noopener,noreferrer')" style="background:none;border:none;padding:0;color:var(--brand-600);text-decoration:underline;cursor:pointer;font-size:inherit;font-family:inherit">sheets.new</button> atau sheet yang sedang aktif).</li>
               <li>Klik menu <strong>Ekstensi (Extensions) &gt; Apps Script</strong>.</li>
               <li>Hapus seluruh kode lama di editor Apps Script, lalu tempel seluruh kode dari file <code>code.gs</code>.</li>
               <li><strong>Pilih aksi di toolbar Apps Script:</strong>
@@ -16836,7 +16821,6 @@
         const pageRenderer = pages[state.route] || dashboardPage;
         document.getElementById('appContent').innerHTML = pageRenderer();
         updateThemeToggleIcons();
-        window.scrollTo({ top: 0, behavior: 'instant' });
       }
 
       // Topbar Buttons
