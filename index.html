@@ -14285,34 +14285,51 @@
           showToast('Error', errMsg, true);
         };
 
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run
-            .withSuccessHandler(onTestSuccess)
-            .withFailureHandler(onTestFail)
-            .apiTestGeminiKey(key, model);
-        } else if (storedSheetsUrl) {
-          fetch(storedSheetsUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'testGeminiKey', apiKey: key, model: model })
-          })
-          .then(r => r.json())
-          .then(onTestSuccess)
-          .catch(onTestFail);
-        } else {
-          // Direct fetch
-          fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+        // Uji koneksi langsung via browser fetch ke Google Generative Language API
+        const testApi = function(mdl) {
+          return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${encodeURIComponent(key)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: "Tes" }] }] })
+            body: JSON.stringify({ contents: [{ parts: [{ text: "Tes koneksi. Jawab persis: 'BERHASIL'" }] }] })
+          });
+        };
+
+        testApi(model)
+          .then(async r => {
+            if (r.status === 404 && model !== 'gemini-1.5-flash') {
+              return testApi('gemini-1.5-flash');
+            }
+            return r;
           })
           .then(r => r.json())
           .then(json => {
-            if (json.candidates) onTestSuccess({ status: 'success', message: `Koneksi langsung ke Google Gemini (${model}) berhasil!` });
-            else onTestSuccess({ status: 'error', message: (json.error && json.error.message) || 'Respons tidak valid' });
+            if (json && json.candidates && json.candidates.length > 0) {
+              onTestSuccess({ status: 'success', message: `Koneksi Google Gemini (${model}) berhasil & API Key valid!` });
+            } else {
+              const errMsg = (json && json.error && json.error.message) || 'Koneksi gagal. Periksa kembali API Key Anda.';
+              onTestSuccess({ status: 'error', message: errMsg });
+            }
           })
-          .catch(onTestFail);
-        }
+          .catch(fetchErr => {
+            // Fallback ke server-side jika direct fetch terhalang jaringan lokal
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler(onTestSuccess)
+                .withFailureHandler(onTestFail)
+                .apiTestGeminiKey(key, model);
+            } else if (storedSheetsUrl) {
+              fetch(storedSheetsUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'testGeminiKey', apiKey: key, model: model })
+              })
+              .then(r => r.json())
+              .then(onTestSuccess)
+              .catch(onTestFail);
+            } else {
+              onTestFail(fetchErr);
+            }
+          });
       }
 
       // Dedicated Change Password Modal
@@ -17535,8 +17552,70 @@
               stockContext = 'Gagal membangun konteks stok: ' + ctxErr.message;
             }
 
-            // Eksekusi pemanggilan Gemini AI via google.script.run (server-side UrlFetchApp)
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
+            // Eksekusi pemanggilan Gemini AI langsung dari browser jika API key tersedia di client
+            const executeDirectGemini = function(keyToUse, modelToUse) {
+              const sysPrompt = "Anda adalah Asisten Analis AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
+                "Tugas Anda adalah membantu pemilik usaha dan staf menganalisis data inventori secara real-time.\n" +
+                "Aturan format jawaban:\n" +
+                "1. Gunakan Bahasa Indonesia yang ramah, profesional, ringkas, dan solutif.\n" +
+                "2. Format angka dalam standar Indonesia (misal: 1.250 unit, Rp 50.000).\n" +
+                "3. Gunakan markdown terstruktur (bold **teks**, bullet points •, dan tabel jika membandingkan data) agar sangat mudah dibaca.\n" +
+                "4. Berikan insight actionable (rekomendasi jumlah restok, deteksi barang kritis/habis, atau saran promosi barang slow-moving).\n" +
+                "5. Analisis secara akurat berdasarkan data real-time berikut:\n\n" +
+                `[DATA INVENTORI REALTIME TERKINI]:\n${stockContext}\n\n` +
+                `[PERTANYAAN PENGGUNA]:\n${query}`;
+
+              const callEndpoint = function(mdl) {
+                return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${encodeURIComponent(keyToUse)}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: sysPrompt }] }],
+                    generationConfig: { maxOutputTokens: 1500, temperature: 0.3 }
+                  })
+                });
+              };
+
+              callEndpoint(modelToUse)
+                .then(async res => {
+                  if (res.status === 404 && modelToUse !== 'gemini-1.5-flash') {
+                    return callEndpoint('gemini-1.5-flash');
+                  }
+                  return res;
+                })
+                .then(r => r.json())
+                .then(data => {
+                  hideTyping();
+                  if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                    const answerText = data.candidates[0].content.parts.map(p => p.text).join('\n');
+                    appendMessage(formatAiResponse(answerText), 'bot');
+                    chatHistory.push({ role: 'bot', text: answerText });
+                  } else {
+                    const errMsg = (data && data.error && data.error.message) || 'Respon tidak valid dari server AI.';
+                    appendMessage('⚠️ <b>Gemini AI:</b> ' + escapeHtml(errMsg) + '<br><small>Mengalihkan ke analisis lokal sebagai fallback...</small>', 'bot');
+                    const answer = analyzeQuery(query);
+                    appendMessage(answer, 'bot');
+                    chatHistory.push({ role: 'bot', text: answer });
+                  }
+                  renderFAQChips();
+                })
+                .catch(err => {
+                  hideTyping();
+                  console.error('Direct Gemini Fetch Error:', err);
+                  appendMessage('⚠️ Gagal terhubung ke AI (' + escapeHtml(err.message) + '). Menggunakan analisis lokal...', 'bot');
+                  const answer = analyzeQuery(query);
+                  appendMessage(answer, 'bot');
+                  chatHistory.push({ role: 'bot', text: answer });
+                  renderFAQChips();
+                });
+            };
+
+            if (customApiKey) {
+              // Jika user telah memasukkan API Key di Pengaturan, hubungi Google Gemini langsung dari browser
+              // Ini instan, bebas kuota backend, dan tidak membutuhkan izin UrlFetchApp
+              executeDirectGemini(customApiKey, customModel);
+            } else if (typeof google !== 'undefined' && google.script && google.script.run) {
+              // Jika API key disimpan di server Script Properties
               google.script.run
                 .withSuccessHandler(function (result) {
                   hideTyping();
@@ -17567,91 +17646,47 @@
                   renderFAQChips();
                 })
                 .apiAskGemini(query, stockContext, customApiKey, customModel);
-            } else {
-              // Jika di luar runtime GAS (misal browser lokal/HTTP POST)
-              const sheetsUrl = storedSheetsUrl || '';
-              if (sheetsUrl) {
-                fetch(sheetsUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'text/plain' },
-                  body: JSON.stringify({
-                    action: 'askGemini',
-                    query: query,
-                    stockContext: stockContext,
-                    apiKey: customApiKey,
-                    model: customModel
-                  })
+            } else if (storedSheetsUrl) {
+              fetch(storedSheetsUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                  action: 'askGemini',
+                  query: query,
+                  stockContext: stockContext,
+                  apiKey: customApiKey,
+                  model: customModel
                 })
-                  .then(r => r.json())
-                  .then(result => {
-                    hideTyping();
-                    if (result && result.status === 'success' && result.answer) {
-                      const formatted = formatAiResponse(result.answer);
-                      appendMessage(formatted, 'bot');
-                      chatHistory.push({ role: 'bot', text: result.answer });
-                    } else {
-                      const answer = analyzeQuery(query);
-                      appendMessage(answer, 'bot');
-                      chatHistory.push({ role: 'bot', text: answer });
-                    }
-                    renderFAQChips();
-                  })
-                  .catch(err => {
-                    hideTyping();
-                    console.error('HTTP Gemini Error:', err);
+              })
+                .then(r => r.json())
+                .then(result => {
+                  hideTyping();
+                  if (result && result.status === 'success' && result.answer) {
+                    const formatted = formatAiResponse(result.answer);
+                    appendMessage(formatted, 'bot');
+                    chatHistory.push({ role: 'bot', text: result.answer });
+                  } else {
                     const answer = analyzeQuery(query);
                     appendMessage(answer, 'bot');
                     chatHistory.push({ role: 'bot', text: answer });
-                    renderFAQChips();
-                  });
-              } else if (customApiKey) {
-                // Fallback direct browser fetch jika standalone
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${customModel}:generateContent?key=${encodeURIComponent(customApiKey)}`;
-                const prompt = `Anda adalah Asisten AI Senior Manajemen Stok & Inventori untuk aplikasi StokKita.\n` +
-                  `Analisis data stok realtime berikut dan jawab pertanyaan user dengan ramah, profesional, dan berbasis data akurat:\n\n` +
-                  `DATA REALTIME:\n${stockContext}\n\n` +
-                  `PERTANYAAN USER:\n${query}\n\n` +
-                  `Berikan rekomendasi yang praktis dan terstruktur (gunakan bullet poin jika perlu). Jawab dalam Bahasa Indonesia.`;
-
-                fetch(apiUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { maxOutputTokens: 1500, temperature: 0.3 }
-                  })
+                  }
+                  renderFAQChips();
                 })
-                  .then(r => r.json())
-                  .then(data => {
-                    hideTyping();
-                    if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-                      const answerText = data.candidates[0].content.parts.map(p => p.text).join('\n');
-                      appendMessage(formatAiResponse(answerText), 'bot');
-                      chatHistory.push({ role: 'bot', text: answerText });
-                    } else {
-                      const answer = analyzeQuery(query);
-                      appendMessage(answer, 'bot');
-                      chatHistory.push({ role: 'bot', text: answer });
-                    }
-                    renderFAQChips();
-                  })
-                  .catch(err => {
-                    hideTyping();
-                    console.error('Direct Gemini Fetch Error:', err);
-                    const answer = analyzeQuery(query);
-                    appendMessage(answer, 'bot');
-                    chatHistory.push({ role: 'bot', text: answer });
-                    renderFAQChips();
-                  });
-              } else {
-                setTimeout(() => {
+                .catch(err => {
                   hideTyping();
                   const answer = analyzeQuery(query);
                   appendMessage(answer, 'bot');
                   chatHistory.push({ role: 'bot', text: answer });
                   renderFAQChips();
-                }, 80 + Math.random() * 50);
-              }
+                });
+            } else {
+              setTimeout(() => {
+                hideTyping();
+                const answer = analyzeQuery(query);
+                appendMessage(answer, 'bot');
+                chatHistory.push({ role: 'bot', text: answer });
+                renderFAQChips();
+              }, 80 + Math.random() * 50);
             }
           } else {
             // Belum ada Gemini Key — gunakan analisis lokal
