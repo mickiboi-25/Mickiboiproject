@@ -4833,6 +4833,8 @@
           autoLogoutMinutes: 15,
           geminiApiKey: '',
           geminiModel: 'gemini-2.5-flash',
+          geminiTone: 'casual',
+          geminiCustomPrompt: '',
           hasGeminiKey: false
         }
       };
@@ -4844,7 +4846,19 @@
           localStorage.removeItem(STORAGE_KEY);
         } catch (e) { }
 
-        return JSON.parse(JSON.stringify(defaultData));
+        const d = JSON.parse(JSON.stringify(defaultData));
+        try {
+          const savedKey = localStorage.getItem('stokkita_gemini_api_key');
+          if (savedKey) {
+            d.settings.geminiApiKey = savedKey;
+            d.settings.hasGeminiKey = true;
+          }
+          const savedTone = localStorage.getItem('stokkita_gemini_tone');
+          if (savedTone) d.settings.geminiTone = savedTone;
+          const savedPrompt = localStorage.getItem('stokkita_gemini_prompt');
+          if (savedPrompt) d.settings.geminiCustomPrompt = savedPrompt;
+        } catch(e) {}
+        return d;
       }
 
       const store = loadStore();
@@ -5007,6 +5021,7 @@
         if (Array.isArray(d.auditLogs)) store.auditLogs = sortLatestFirst(d.auditLogs);
         if (d.settings && typeof d.settings === 'object' && Object.keys(d.settings).length) {
           store.settings = { ...store.settings, ...d.settings };
+          if (store.settings.geminiApiKey) store.settings.hasGeminiKey = true;
         }
 
         currentSheetsStatus = 'connected';
@@ -10465,6 +10480,26 @@
                         ${icon('refresh')} Tes Koneksi API Key
                       </button>
                     </div>
+                    <div class="field span-2">
+                      <label for="cfgGeminiTone">Gaya Bahasa & Nada Bicara AI</label>
+                      <select class="control" id="cfgGeminiTone">
+                        <option value="casual" ${(store.settings.geminiTone || 'casual') === 'casual' ? 'selected' : ''}>💬 Santai & Singkat (Bahasa Manusiawi Sehari-hari — Rekomendasi)</option>
+                        <option value="formal" ${store.settings.geminiTone === 'formal' ? 'selected' : ''}>👔 Formal, Rapi & Terstruktur</option>
+                        <option value="custom" ${store.settings.geminiTone === 'custom' ? 'selected' : ''}>⚙️ Kustom Sepenuhnya (Mengikuti Kotak di Bawah)</option>
+                      </select>
+                    </div>
+                    <div class="field span-2">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <label for="cfgGeminiPrompt" style="margin:0">Instruksi Khusus / Custom Prompt AI</label>
+                        <button type="button" class="btn btn-ghost btn-sm" data-action="reset-gemini-prompt" style="font-size:11px;padding:2px 8px;height:auto">
+                          ${icon('refresh')} Reset ke Default
+                        </button>
+                      </div>
+                      <textarea class="control" id="cfgGeminiPrompt" rows="3" placeholder="Tulis instruksi khusus untuk mengatur gaya bicara atau fokus AI..." style="font-size:12px;line-height:1.5">${escapeHtml(store.settings.geminiCustomPrompt !== undefined ? store.settings.geminiCustomPrompt : '')}</textarea>
+                      <p style="font-size:11px;color:var(--ink-500);margin:4px 0 0">
+                        💡 <strong>Tips Prompt:</strong> Anda bebas mengetik aturan tambahan apa saja di sini. Contoh: <em>"Jawab sangat singkat maksimal 2 kalimat, sebutkan stok dan gudang saja, pakai bahasa santai seperti teman kerja."</em>
+                      </p>
+                    </div>
                   </div>
                   <div id="geminiTestFeedback" style="margin-top:12px;display:none;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5"></div>
                 </div>
@@ -15614,6 +15649,14 @@
           return;
         }
         if (action === 'test-gemini-key') return testGeminiApiKey();
+        if (action === 'reset-gemini-prompt') {
+          const promptEl = document.getElementById('cfgGeminiPrompt');
+          if (promptEl) {
+            promptEl.value = 'Jawab sangat singkat, padat, dan langsung ke intinya. Gunakan bahasa Indonesia sehari-hari yang santai, luwes, dan ramah seperti mengobrol dengan rekan kerja. Hindari basa-basi panjang.';
+            showToast('Prompt Direset', 'Instruksi AI telah dikembalikan ke pengaturan default santai & ringkas.');
+          }
+          return;
+        }
 
         // Password & Auth Actions
         if (action === 'change-password') return openChangePasswordModal(actionEl.dataset.id);
@@ -15664,21 +15707,35 @@
 
           addAuditLog('UPDATE', 'Pengaturan', 'Config', 'Memperbarui aturan aplikasi & identitas bisnis');
 
-          // Simpan Gemini AI Key & Model
+          // Simpan Gemini AI Key, Model, Tone & Custom Prompt
           const geminiKeyEl = document.getElementById('cfgGeminiKey');
           if (geminiKeyEl) {
             const keyVal = geminiKeyEl.value.trim();
             store.settings.geminiApiKey = keyVal;
             store.settings.hasGeminiKey = !!keyVal;
+            try {
+              if (keyVal) localStorage.setItem('stokkita_gemini_api_key', keyVal);
+              else localStorage.removeItem('stokkita_gemini_api_key');
+            } catch (e) { }
           }
           const geminiModelEl = document.getElementById('cfgGeminiModel');
           if (geminiModelEl) {
             store.settings.geminiModel = geminiModelEl.value || 'gemini-2.5-flash';
           }
+          const geminiToneEl = document.getElementById('cfgGeminiTone');
+          if (geminiToneEl) {
+            store.settings.geminiTone = geminiToneEl.value || 'casual';
+            try { localStorage.setItem('stokkita_gemini_tone', store.settings.geminiTone); } catch (e) { }
+          }
+          const geminiPromptEl = document.getElementById('cfgGeminiPrompt');
+          if (geminiPromptEl) {
+            store.settings.geminiCustomPrompt = geminiPromptEl.value.trim();
+            try { localStorage.setItem('stokkita_gemini_prompt', store.settings.geminiCustomPrompt); } catch (e) { }
+          }
 
           saveStore();
           render();
-          return showToast('Pengaturan Tersimpan', 'Konfigurasi inventori berhasil diperbarui.');
+          return showToast('Pengaturan Tersimpan', 'Konfigurasi inventori dan gaya AI berhasil diperbarui.');
         }
 
         // Professional Excel (.xlsx) Exports
@@ -17553,18 +17610,33 @@
             }
 
             // Eksekusi pemanggilan Gemini AI langsung dari browser jika API key tersedia di client
-            const executeDirectGemini = function(keyToUse, modelToUse) {
-              const sysPrompt = "Anda adalah Asisten Analis AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
-                "Tugas Anda adalah membantu pemilik usaha dan staf menganalisis data inventori secara real-time.\n" +
-                "Aturan format jawaban:\n" +
-                "1. Gunakan Bahasa Indonesia yang ramah, profesional, ringkas, dan solutif.\n" +
-                "2. Format angka dalam standar Indonesia (misal: 1.250 unit, Rp 50.000).\n" +
-                "3. Gunakan markdown terstruktur (bold **teks**, bullet points •, dan tabel jika membandingkan data) agar sangat mudah dibaca.\n" +
-                "4. Berikan insight actionable (rekomendasi jumlah restok, deteksi barang kritis/habis, atau saran promosi barang slow-moving).\n" +
-                "5. Analisis secara akurat berdasarkan data real-time berikut:\n\n" +
-                `[DATA INVENTORI REALTIME TERKINI]:\n${stockContext}\n\n` +
-                `[PERTANYAAN PENGGUNA]:\n${query}`;
+            const tone = (store.settings && store.settings.geminiTone) || localStorage.getItem('stokkita_gemini_tone') || 'casual';
+            const userCustomPrompt = ((store.settings && store.settings.geminiCustomPrompt) !== undefined ? store.settings.geminiCustomPrompt : (localStorage.getItem('stokkita_gemini_prompt') || '')).trim();
 
+            let toneInstruction = '';
+            if (tone === 'casual') {
+              toneInstruction = "ATURAN GAYA BICARA:\n" +
+                "- Gunakan Bahasa Indonesia sehari-hari yang santai, luwes, ramah, dan manusiawi (seperti mengobrol langsung dengan rekan kerja / admin toko).\n" +
+                "- Jawab dengan SINGKAT, JELAS, dan LANGSUNG PADA INTI DATA tanpa bertele-tele.\n" +
+                "- Hindari basa-basi pembuka dan penutup yang panjang (jangan mengulang 'Berdasarkan data inventori yang tercatat...').\n" +
+                "- Jika ditanya stok barang tertentu, langsung sebutkan jumlahnya, satuannya, lokasinya di gudang mana, dan statusnya (aman/kritis/habis).\n" +
+                "- Gunakan teks tebal **angka/nama** agar mudah dibaca sekilas. Gunakan emoji wajar (👍, 📦, ⚠️) agar interaktif.\n";
+            } else if (tone === 'formal') {
+              toneInstruction = "ATURAN GAYA BICARA:\n" +
+                "- Gunakan Bahasa Indonesia yang formal, profesional, dan terstruktur.\n" +
+                "- Sajikan ringkasan data, poin rekomendasi, dan tabel jika relevan.\n";
+            }
+
+            if (userCustomPrompt) {
+              toneInstruction += `\nINSTRUKSI KHUSUS DARI PENGGUNA:\n${userCustomPrompt}\n`;
+            }
+
+            const sysPrompt = "Anda adalah Asisten AI Cerdas untuk aplikasi stok 'StokKita'.\n\n" +
+              toneInstruction + "\n" +
+              `[DATA INVENTORI REALTIME TERKINI]:\n${stockContext}\n\n` +
+              `[PERTANYAAN PENGGUNA]:\n${query}`;
+
+            const executeDirectGemini = function(keyToUse, modelToUse) {
               const callEndpoint = function(mdl) {
                 return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${encodeURIComponent(keyToUse)}`, {
                   method: 'POST',
@@ -17645,7 +17717,7 @@
                   chatHistory.push({ role: 'bot', text: answer });
                   renderFAQChips();
                 })
-                .apiAskGemini(query, stockContext, customApiKey, customModel);
+                .apiAskGemini(query, stockContext, customApiKey, customModel, tone, userCustomPrompt);
             } else if (storedSheetsUrl) {
               fetch(storedSheetsUrl, {
                 method: 'POST',
@@ -17655,7 +17727,9 @@
                   query: query,
                   stockContext: stockContext,
                   apiKey: customApiKey,
-                  model: customModel
+                  model: customModel,
+                  tone: tone,
+                  prompt: userCustomPrompt
                 })
               })
                 .then(r => r.json())

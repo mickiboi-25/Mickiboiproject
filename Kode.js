@@ -284,25 +284,39 @@ function apiMigrate() {
   }
 }
 
-function apiAskGemini(query, stockContext, customApiKey, customModel) {
+function apiAskGemini(query, stockContext, customApiKey, customModel, customTone, customPrompt) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const settings = readSettingsSheet(ss);
     const apiKey = (customApiKey && String(customApiKey).trim()) || (settings && settings.geminiApiKey ? String(settings.geminiApiKey).trim() : '');
     let model = (customModel && String(customModel).trim()) || (settings && settings.geminiModel ? String(settings.geminiModel).trim() : 'gemini-2.5-flash');
+    const tone = (customTone && String(customTone).trim()) || (settings && settings.geminiTone ? String(settings.geminiTone).trim() : 'casual');
+    const userPrompt = (customPrompt !== undefined && customPrompt !== null ? String(customPrompt).trim() : (settings && settings.geminiCustomPrompt ? String(settings.geminiCustomPrompt).trim() : ''));
 
     if (!apiKey) {
       return { status: 'fallback', message: 'Gemini API Key belum dikonfigurasi di Pengaturan.' };
     }
 
-    const systemPrompt = "Anda adalah Asisten Analis AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
-      "Tugas Anda adalah membantu pemilik usaha dan staf menganalisis data inventori secara real-time. " +
-      "Aturan format jawaban:\n" +
-      "1. Gunakan Bahasa Indonesia yang ramah, profesional, ringkas, dan solutif.\n" +
-      "2. Format angka dalam standar Indonesia (misal: 1.250 unit, Rp 50.000).\n" +
-      "3. Gunakan markdown terstruktur (bold **teks**, bullet points •, dan tabel markdown jika membandingkan data) agar sangat mudah dibaca.\n" +
-      "4. Berikan insight actionable (misal: rekomendasi jumlah restok, peringatan stok kritis, atau saran promosi untuk barang slow-moving).\n" +
-      "5. Analisis secara akurat berdasarkan data real-time yang dilampirkan.";
+    let toneInstruction = '';
+    if (tone === 'casual') {
+      toneInstruction = "ATURAN GAYA BICARA:\n" +
+        "1. Gunakan Bahasa Indonesia sehari-hari yang santai, luwes, ramah, dan manusiawi (seperti mengobrol langsung dengan rekan kerja / admin gudang).\n" +
+        "2. Jawab dengan SINGKAT, JELAS, dan LANGSUNG PADA INTI DATA tanpa bertele-tele.\n" +
+        "3. Hindari basa-basi pembuka dan penutup yang panjang (jangan mengulang 'Berdasarkan data inventori...').\n" +
+        "4. Jika ditanya stok barang tertentu, langsung sebutkan jumlahnya, satuannya, lokasinya di gudang mana, dan statusnya (aman/kritis/habis).\n" +
+        "5. Gunakan teks tebal **angka/nama** agar mudah dibaca sekilas. Gunakan emoji wajar (👍, 📦, ⚠️) agar interaktif.\n";
+    } else if (tone === 'formal') {
+      toneInstruction = "ATURAN GAYA BICARA:\n" +
+        "1. Gunakan Bahasa Indonesia yang formal, profesional, dan terstruktur.\n" +
+        "2. Sajikan ringkasan data, poin rekomendasi, dan tabel jika relevan.\n";
+    }
+
+    if (userPrompt) {
+      toneInstruction += `\nINSTRUKSI KHUSUS DARI PENGGUNA:\n${userPrompt}\n`;
+    }
+
+    const systemPrompt = "Anda adalah Asisten AI Cerdas untuk aplikasi manajemen stok dan inventori 'StokKita'.\n" +
+      toneInstruction;
 
     const promptText = `${systemPrompt}\n\n[DATA INVENTORI REALTIME TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN / INSTRUKSI PENGGUNA]:\n${query}`;
 
@@ -437,7 +451,7 @@ function doPost(e) {
 
     // 6. Konsultasi Analitik Stok via Google Gemini AI
     if (payload.action === 'askGemini') {
-      const res = apiAskGemini(payload.query, payload.stockContext, payload.customApiKey, payload.customModel);
+      const res = apiAskGemini(payload.query, payload.stockContext, payload.customApiKey || payload.apiKey, payload.customModel || payload.model, payload.customTone || payload.tone, payload.customPrompt || payload.prompt);
       return jsonResponse(res);
     }
 
@@ -662,7 +676,7 @@ function readSettingsSheet(ss) {
     if (key) {
       const strVal = String(val !== undefined && val !== null ? val : '').trim();
       // Kunci yang wajib bertipe teks/string (agar awalan angka 0 seperti nomor telepon tidak terpotong)
-      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel') {
+      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel' || key === 'geminiTone' || key === 'geminiCustomPrompt') {
         settings[key] = strVal;
       } else if (strVal.toLowerCase() === 'true' || val === true) {
         settings[key] = true;
