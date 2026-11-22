@@ -284,50 +284,93 @@ function apiMigrate() {
   }
 }
 
-function apiAskGemini(query, stockContext) {
+function apiAskGemini(query, stockContext, customApiKey, customModel) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const settings = readSettingsSheet(ss);
-    const apiKey = (settings && settings.geminiApiKey) ? String(settings.geminiApiKey).trim() : '';
-    const model = (settings && settings.geminiModel) ? String(settings.geminiModel).trim() : 'gemini-2.5-flash';
+    const apiKey = (customApiKey && String(customApiKey).trim()) || (settings && settings.geminiApiKey ? String(settings.geminiApiKey).trim() : '');
+    let model = (customModel && String(customModel).trim()) || (settings && settings.geminiModel ? String(settings.geminiModel).trim() : 'gemini-2.5-flash');
 
     if (!apiKey) {
       return { status: 'fallback', message: 'Gemini API Key belum dikonfigurasi di Pengaturan.' };
     }
 
-    const systemPrompt = "Anda adalah Asisten AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
-      "Jawab pertanyaan pengguna secara cerdas, ramah, ringkas, dan akurat dalam Bahasa Indonesia berdasarkan data inventori terkini yang dilampirkan. " +
-      "Format angka dalam format Indonesia (misal: 1.250 unit, Rp 50.000). Berikan saran taktis jika ada stok yang hampir habis (kritis) atau barang slow-moving.";
+    const systemPrompt = "Anda adalah Asisten Analis AI Resmi untuk aplikasi manajemen stok dan inventori multi-gudang 'StokKita'. " +
+      "Tugas Anda adalah membantu pemilik usaha dan staf menganalisis data inventori secara real-time. " +
+      "Aturan format jawaban:\n" +
+      "1. Gunakan Bahasa Indonesia yang ramah, profesional, ringkas, dan solutif.\n" +
+      "2. Format angka dalam standar Indonesia (misal: 1.250 unit, Rp 50.000).\n" +
+      "3. Gunakan markdown terstruktur (bold **teks**, bullet points •, dan tabel markdown jika membandingkan data) agar sangat mudah dibaca.\n" +
+      "4. Berikan insight actionable (misal: rekomendasi jumlah restok, peringatan stok kritis, atau saran promosi untuk barang slow-moving).\n" +
+      "5. Analisis secara akurat berdasarkan data real-time yang dilampirkan.";
 
-    const promptText = `${systemPrompt}\n\n[DATA INVENTORI TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN PENGGUNA]:\n${query}`;
+    const promptText = `${systemPrompt}\n\n[DATA INVENTORI REALTIME TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN / INSTRUKSI PENGGUNA]:\n${query}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const payload = {
-      contents: [{
-        parts: [{ text: promptText }]
-      }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 1024
-      }
-    };
+    function requestGemini(mdl) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 1500
+        }
+      };
+      return UrlFetchApp.fetch(url, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    }
 
-    const response = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
+    let response = requestGemini(model);
+    let statusCode = response.getResponseCode();
+    let respJson = JSON.parse(response.getContentText());
 
-    const statusCode = response.getResponseCode();
-    const respJson = JSON.parse(response.getContentText());
+    // Fallback otomatis ke model stabil jika model tertentu belum aktif di key user
+    if (statusCode === 404 && model !== 'gemini-1.5-flash') {
+      response = requestGemini('gemini-1.5-flash');
+      statusCode = response.getResponseCode();
+      respJson = JSON.parse(response.getContentText());
+      if (statusCode === 200) model = 'gemini-1.5-flash';
+    }
 
     if (statusCode === 200 && respJson.candidates && respJson.candidates.length > 0) {
       const candidate = respJson.candidates[0];
       const text = (candidate.content && candidate.content.parts)
         ? candidate.content.parts.map(p => p.text).join('\n')
         : '';
-      return { status: 'success', answer: text };
+      return { status: 'success', answer: text, modelUsed: model };
+    } else {
+      const errMsg = (respJson.error && respJson.error.message) || response.getContentText();
+      return { status: 'error', message: errMsg, statusCode: statusCode };
+    }
+  } catch (err) {
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+function apiTestGeminiKey(apiKey, model) {
+  try {
+    const key = String(apiKey || '').trim();
+    const mdl = String(model || 'gemini-2.5-flash').trim();
+    if (!key) {
+      return { status: 'error', message: 'API Key tidak boleh kosong.' };
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${key}`;
+    const payload = {
+      contents: [{ parts: [{ text: "Tes koneksi. Jawab persis satu kata: 'BERHASIL'" }] }]
+    };
+    const response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    const statusCode = response.getResponseCode();
+    const respJson = JSON.parse(response.getContentText());
+    if (statusCode === 200 && respJson.candidates && respJson.candidates.length > 0) {
+      return { status: 'success', message: `Koneksi berhasil! Model ${mdl} aktif dan siap digunakan.` };
     } else {
       const errMsg = (respJson.error && respJson.error.message) || response.getContentText();
       return { status: 'error', message: errMsg };
@@ -394,7 +437,13 @@ function doPost(e) {
 
     // 6. Konsultasi Analitik Stok via Google Gemini AI
     if (payload.action === 'askGemini') {
-      const res = apiAskGemini(payload.query, payload.stockContext);
+      const res = apiAskGemini(payload.query, payload.stockContext, payload.customApiKey, payload.customModel);
+      return jsonResponse(res);
+    }
+
+    // 7. Tes Koneksi Gemini API Key
+    if (payload.action === 'testGeminiKey') {
+      const res = apiTestGeminiKey(payload.apiKey, payload.model);
       return jsonResponse(res);
     }
 
@@ -498,7 +547,7 @@ function getWarehouseNames(ss, products, warehouses) {
         }
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   if (Array.isArray(products)) {
     products.forEach(p => {
@@ -528,7 +577,7 @@ function parseItemDetailsText(val) {
       const parsed = JSON.parse(str);
       if (Array.isArray(parsed)) return parsed;
       if (typeof parsed === 'object') return [parsed];
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const parts = str.split(/[|\n;]+/).map(s => s.trim()).filter(Boolean);
@@ -613,7 +662,7 @@ function readSettingsSheet(ss) {
     if (key) {
       const strVal = String(val !== undefined && val !== null ? val : '').trim();
       // Kunci yang wajib bertipe teks/string (agar awalan angka 0 seperti nomor telepon tidak terpotong)
-      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat') {
+      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel') {
         settings[key] = strVal;
       } else if (strVal.toLowerCase() === 'true' || val === true) {
         settings[key] = true;
@@ -823,7 +872,7 @@ function readProductsSheet(ss) {
             }
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     list.push(item);
@@ -1289,7 +1338,7 @@ function saveBase64ImageToDriveOrCell(base64Data, fileNamePrefix) {
       const file = folder.createFile(blob);
       try {
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch (e) {}
+      } catch (e) { }
       return `https://drive.google.com/thumbnail?id=${file.getId()}&sz=w1200`;
     }
   } catch (err) {
@@ -1547,8 +1596,8 @@ function writeProductsSheet(ss, products, warehouses) {
     sheet.getRange(2, 8, rows.length - 1, 1).setWrap(false);
     if (warehouseNames.length > 0) {
       sheet.getRange(2, firstWhColIdx, rows.length - 1, warehouseNames.length + 1)
-           .setNumberFormat('#,##0')
-           .setHorizontalAlignment('right');
+        .setNumberFormat('#,##0')
+        .setHorizontalAlignment('right');
     }
   }
 }
@@ -1832,10 +1881,10 @@ function writeOpnamesSheet(ss, opnames) {
 function formatHeaderRow(sheet, colCount) {
   const headerRange = sheet.getRange(1, 1, 1, colCount);
   headerRange.setBackground('#176b57')
-             .setFontColor('#ffffff')
-             .setFontWeight('bold')
-             .setFontFamily('Arial')
-             .setHorizontalAlignment('center');
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setFontFamily('Arial')
+    .setHorizontalAlignment('center');
   sheet.setFrozenRows(1);
 }
 
@@ -2076,7 +2125,7 @@ function setupDatabase() {
   ['Sheet1', 'Sheet 1'].forEach(oldName => {
     const s = ss.getSheetByName(oldName);
     if (s && ss.getSheets().length > 1 && s.getLastRow() <= 1) {
-      try { ss.deleteSheet(s); } catch (e) {}
+      try { ss.deleteSheet(s); } catch (e) { }
     }
   });
 
@@ -2165,7 +2214,7 @@ function resetDatabaseTotalBersih_HATI_HATI() {
   ['Sheet1', 'Sheet 1', 'TRANSACTIONS', 'OPNAMES'].forEach(oldName => {
     const s = ss.getSheetByName(oldName);
     if (s && ss.getSheets().length > 1) {
-      try { ss.deleteSheet(s); } catch (e) {}
+      try { ss.deleteSheet(s); } catch (e) { }
     }
   });
 

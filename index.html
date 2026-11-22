@@ -15,7 +15,9 @@
   <title>StokKita — Inventori Multi Gudang</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       /* Brand Palette: Refined Modern Emerald */
@@ -481,7 +483,12 @@
       transition: background-color .2s ease, color .2s ease;
     }
 
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
       color: var(--ink-950);
       letter-spacing: -0.022em;
     }
@@ -2191,8 +2198,8 @@
       justify-content: center;
       padding: 24px;
       background: radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.16) 0%, transparent 45%),
-                  radial-gradient(circle at 85% 85%, rgba(5, 150, 105, 0.18) 0%, transparent 50%),
-                  #07130f;
+        radial-gradient(circle at 85% 85%, rgba(5, 150, 105, 0.18) 0%, transparent 50%),
+        #07130f;
       color: #fff;
       overflow-y: auto;
     }
@@ -2275,8 +2282,17 @@
     }
 
     @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+      }
     }
 
     .login-info-brand {
@@ -2786,9 +2802,21 @@
     }
 
     @keyframes loginShake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
+
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+
+      20%,
+      60% {
+        transform: translateX(-6px);
+      }
+
+      40%,
+      80% {
+        transform: translateX(6px);
+      }
     }
 
     .input-error {
@@ -2975,6 +3003,7 @@
       from {
         transform: rotate(0deg);
       }
+
       to {
         transform: rotate(360deg);
       }
@@ -4039,13 +4068,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 6px 24px rgba(5, 150, 105, 0.45), 0 2px 8px rgba(0,0,0,.18);
-      transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+      box-shadow: 0 6px 24px rgba(5, 150, 105, 0.45), 0 2px 8px rgba(0, 0, 0, .18);
+      transition: transform .2s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s;
     }
+
     #aiChatBtn:hover {
       transform: scale(1.1);
       box-shadow: 0 10px 32px rgba(5, 150, 105, 0.55);
     }
+
     #aiChatBtn .ai-chat-badge {
       position: absolute;
       top: -3px;
@@ -4062,7 +4093,12 @@
       justify-content: center;
       color: #fff;
     }
-    #aiChatBtn svg { width: 26px; height: 26px; }
+
+    #aiChatBtn svg {
+      width: 26px;
+      height: 26px;
+    }
+
     @media (max-width: 900px) {
       #aiChatBtn {
         bottom: calc(72px + env(safe-area-inset-bottom, 10px) + 12px);
@@ -4085,18 +4121,20 @@
       background: var(--surface);
       border: 1px solid var(--ink-200);
       border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.08);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .18), 0 4px 12px rgba(0, 0, 0, .08);
       overflow: hidden;
       opacity: 0;
       transform: translateY(16px) scale(.97);
       pointer-events: none;
-      transition: opacity .22s ease, transform .22s cubic-bezier(.34,1.56,.64,1);
+      transition: opacity .22s ease, transform .22s cubic-bezier(.34, 1.56, .64, 1);
     }
+
     #aiChatPanel.open {
       opacity: 1;
       transform: translateY(0) scale(1);
       pointer-events: all;
     }
+
     @media (max-width: 900px) {
       #aiChatPanel {
         bottom: calc(72px + env(safe-area-inset-bottom, 10px) + 68px);
@@ -4116,26 +4154,52 @@
       color: #fff;
       flex: none;
     }
+
     .aichat-avatar {
-      width: 36px; height: 36px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
-      background: rgba(52,211,153,.2);
-      border: 1.5px solid rgba(52,211,153,.4);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex: none;
+      background: rgba(52, 211, 153, .2);
+      border: 1.5px solid rgba(52, 211, 153, .4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex: none;
     }
-    .aichat-title { flex: 1; }
-    .aichat-title strong { display: block; font-size: 14px; font-weight: 700; }
-    .aichat-title span { font-size: 11px; color: #a7f3d0; }
+
+    .aichat-title {
+      flex: 1;
+    }
+
+    .aichat-title strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .aichat-title span {
+      font-size: 11px;
+      color: #a7f3d0;
+    }
+
     .aichat-close-btn {
-      background: rgba(255,255,255,.12);
-      border: none; color: #fff;
-      width: 30px; height: 30px;
-      border-radius: 8px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
+      background: rgba(255, 255, 255, .12);
+      border: none;
+      color: #fff;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: background .15s;
     }
-    .aichat-close-btn:hover { background: rgba(255,255,255,.22); }
+
+    .aichat-close-btn:hover {
+      background: rgba(255, 255, 255, .22);
+    }
 
     .aichat-faq-bar {
       padding: 10px 12px 8px;
@@ -4143,6 +4207,7 @@
       border-bottom: 1px solid var(--ink-200);
       flex: none;
     }
+
     .aichat-faq-bar p {
       margin: 0 0 7px;
       font-size: 11px;
@@ -4151,11 +4216,13 @@
       text-transform: uppercase;
       letter-spacing: .05em;
     }
+
     .faq-chips {
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
     }
+
     .faq-chip {
       border: 1px solid var(--ink-300);
       border-radius: 20px;
@@ -4167,12 +4234,17 @@
       transition: all .15s;
       white-space: nowrap;
     }
-    .faq-chip:hover, .faq-chip.hot {
+
+    .faq-chip:hover,
+    .faq-chip.hot {
       background: var(--brand-500);
       border-color: var(--brand-500);
       color: #fff;
     }
-    .faq-chip.hot { font-weight: 700; }
+
+    .faq-chip.hot {
+      font-weight: 700;
+    }
 
     .aichat-messages {
       flex: 1;
@@ -4184,41 +4256,61 @@
       scrollbar-width: thin;
       scrollbar-color: var(--ink-200) transparent;
     }
+
     .aichat-msg {
       max-width: 88%;
       font-size: 13px;
       line-height: 1.55;
       animation: msgPop .18s ease;
     }
+
     @keyframes msgPop {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
-    .aichat-msg.bot { align-self: flex-start; }
-    .aichat-msg.user { align-self: flex-end; }
+
+    .aichat-msg.bot {
+      align-self: flex-start;
+    }
+
+    .aichat-msg.user {
+      align-self: flex-end;
+    }
+
     .aichat-bubble {
       padding: 9px 13px;
       border-radius: 14px;
       display: inline-block;
       word-break: break-word;
     }
+
     .aichat-msg.bot .aichat-bubble {
       background: var(--canvas);
       border: 1px solid var(--ink-200);
       color: var(--ink-800);
       border-bottom-left-radius: 4px;
     }
+
     .aichat-msg.user .aichat-bubble {
       background: var(--brand-600);
       color: #fff;
       border-bottom-right-radius: 4px;
     }
+
     .aichat-bubble .ai-data-table {
       margin-top: 8px;
       border-collapse: collapse;
       width: 100%;
       font-size: 12px;
     }
+
     .aichat-bubble .ai-data-table th {
       background: var(--ink-100);
       color: var(--ink-600);
@@ -4227,93 +4319,69 @@
       border: 1px solid var(--ink-200);
       font-weight: 700;
     }
+
     .aichat-bubble .ai-data-table td {
       padding: 4px 7px;
       border: 1px solid var(--ink-200);
       color: var(--ink-800);
     }
+
     .aichat-bubble .ai-data-table tr:nth-child(even) td {
       background: var(--canvas);
     }
-    .aichat-bubble .ai-quick-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 10px;
-    }
-    .aichat-bubble .ai-quick-btn {
-      background: var(--surface, #ffffff);
-      border: 1px solid var(--brand-500, #176b57);
-      color: var(--brand-700, #0f5132);
-      border-radius: 8px;
-      padding: 5px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    .aichat-bubble .ai-quick-btn:hover {
-      background: var(--brand-500, #176b57);
-      color: #ffffff;
-      transform: translateY(-1px);
-    }
-    .aichat-bubble .ai-badge {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 700;
-    }
-    .aichat-bubble .ai-badge.danger { background: #fee2e2; color: #b91c1c; }
-    .aichat-bubble .ai-badge.success { background: #dcfce7; color: #15803d; }
-    .aichat-bubble .ai-badge.info { background: #e0f2fe; color: #0369a1; }
-    .aichat-bubble .ai-prod-card {
-      background: var(--surface, #ffffff);
-      border: 1px solid var(--ink-200, #e2e8f0);
-      border-radius: 10px;
-      padding: 10px 12px;
-      margin-top: 8px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-    }
-    .aichat-bubble .ai-prod-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--ink-900, #0f172a);
-      margin-bottom: 4px;
-    }
-    .aichat-bubble .ai-prod-meta {
-      font-size: 11px;
-      color: var(--ink-500, #64748b);
-      margin-bottom: 6px;
-    }
+
     .aichat-typing {
-      display: flex; gap: 4px; padding: 10px 13px;
-      background: var(--canvas); border: 1px solid var(--ink-200);
-      border-radius: 14px; border-bottom-left-radius: 4px;
+      display: flex;
+      gap: 4px;
+      padding: 10px 13px;
+      background: var(--canvas);
+      border: 1px solid var(--ink-200);
+      border-radius: 14px;
+      border-bottom-left-radius: 4px;
       align-self: flex-start;
     }
+
     .aichat-typing span {
-      width: 7px; height: 7px; border-radius: 50%;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
       background: var(--ink-400, #94a3b8);
       animation: typingBounce .9s infinite;
     }
-    .aichat-typing span:nth-child(2) { animation-delay: .15s; }
-    .aichat-typing span:nth-child(3) { animation-delay: .3s; }
-    @keyframes typingBounce {
-      0%, 80%, 100% { transform: translateY(0); opacity: .4; }
-      40% { transform: translateY(-5px); opacity: 1; }
+
+    .aichat-typing span:nth-child(2) {
+      animation-delay: .15s;
     }
+
+    .aichat-typing span:nth-child(3) {
+      animation-delay: .3s;
+    }
+
+    @keyframes typingBounce {
+
+      0%,
+      80%,
+      100% {
+        transform: translateY(0);
+        opacity: .4;
+      }
+
+      40% {
+        transform: translateY(-5px);
+        opacity: 1;
+      }
+    }
+
     .aichat-msg-time {
       font-size: 10px;
       color: var(--ink-500);
       margin-top: 3px;
       text-align: right;
     }
-    .aichat-msg.bot .aichat-msg-time { text-align: left; }
+
+    .aichat-msg.bot .aichat-msg-time {
+      text-align: left;
+    }
 
     .aichat-input-row {
       display: flex;
@@ -4323,6 +4391,7 @@
       background: var(--surface);
       flex: none;
     }
+
     #aiChatInput {
       flex: 1;
       border: 1px solid var(--ink-300);
@@ -4337,38 +4406,60 @@
       max-height: 90px;
       transition: border-color .15s;
     }
-    #aiChatInput:focus { border-color: var(--brand-500); background: var(--surface); }
+
+    #aiChatInput:focus {
+      border-color: var(--brand-500);
+      background: var(--surface);
+    }
+
     #aiChatSendBtn {
-      width: 42px; height: 42px;
+      width: 42px;
+      height: 42px;
       flex: none;
       border: none;
       border-radius: 12px;
       background: var(--brand-600);
       color: #fff;
       cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: background .15s, transform .1s;
     }
-    #aiChatSendBtn:hover { background: var(--brand-700); }
-    #aiChatSendBtn:active { transform: scale(.93); }
-    #aiChatSendBtn svg { width: 18px; height: 18px; }
+
+    #aiChatSendBtn:hover {
+      background: var(--brand-700);
+    }
+
+    #aiChatSendBtn:active {
+      transform: scale(.93);
+    }
+
+    #aiChatSendBtn svg {
+      width: 18px;
+      height: 18px;
+    }
+
     [data-theme="dark"] .aichat-msg.bot .aichat-bubble,
     body.dark-mode .aichat-msg.bot .aichat-bubble {
       background: var(--ink-100);
       border-color: var(--ink-200);
       color: var(--ink-950);
     }
+
     [data-theme="dark"] .aichat-bubble .ai-data-table th,
     body.dark-mode .aichat-bubble .ai-data-table th {
       background: var(--ink-200);
       color: var(--ink-600);
       border-color: var(--ink-300);
     }
+
     [data-theme="dark"] .aichat-bubble .ai-data-table td,
     body.dark-mode .aichat-bubble .ai-data-table td {
       border-color: var(--ink-300);
       color: var(--ink-950);
     }
+
     [data-theme="dark"] .aichat-bubble .ai-data-table tr:nth-child(even) td,
     body.dark-mode .aichat-bubble .ai-data-table tr:nth-child(even) td {
       background: var(--surface);
@@ -4576,22 +4667,26 @@
       <polyline points="21 15 16 10 5 21" />
     </symbol>
     <symbol id="i-barcode" viewBox="0 0 24 24">
-      <path d="M3 5v14M6 5v14M9 5v14M11 5v14M15 5v14M17 5v14M21 5v14M13 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M3 5v14M6 5v14M9 5v14M11 5v14M15 5v14M17 5v14M21 5v14M13 5v14" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" />
     </symbol>
     <symbol id="i-qrcode" viewBox="0 0 24 24">
-      <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-      <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-      <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-      <rect x="14" y="14" width="3" height="3" fill="currentColor"/>
-      <path d="M21 14v3a4 4 0 0 1-4 4M14 21h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2" />
+      <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2" />
+      <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2" />
+      <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+      <path d="M21 14v3a4 4 0 0 1-4 4M14 21h.01" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" />
     </symbol>
     <symbol id="i-scan" viewBox="0 0 24 24">
-      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <line x1="7" y1="12" x2="17" y2="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
+        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      <line x1="7" y1="12" x2="17" y2="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
     </symbol>
     <symbol id="i-keyboard" viewBox="0 0 24 24">
-      <rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-      <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2" />
+      <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" />
     </symbol>
   </svg>
 
@@ -4635,8 +4730,9 @@
           <p id="topSubtitle">Ringkasan aktivitas seluruh gudang</p>
         </div>
         <div class="top-actions">
-          <button class="icon-btn quick-scan-btn" id="topQuickScanBtn" data-action="open-barcode-scanner" data-context="global"
-            title="Scan Cepat Barcode / QR Barang (Cari Stok & Aksi Instan)" aria-label="Scan Barcode Barang">
+          <button class="icon-btn quick-scan-btn" id="topQuickScanBtn" data-action="open-barcode-scanner"
+            data-context="global" title="Scan Cepat Barcode / QR Barang (Cari Stok & Aksi Instan)"
+            aria-label="Scan Barcode Barang">
             <svg class="icon">
               <use href="#i-scan" />
             </svg>
@@ -4734,7 +4830,10 @@
           timezone: 'Asia/Jakarta (WIB)',
           rejectNegativeStock: true,
           autoLogoutEnabled: true,
-          autoLogoutMinutes: 15
+          autoLogoutMinutes: 15,
+          geminiApiKey: '',
+          geminiModel: 'gemini-2.5-flash',
+          hasGeminiKey: false
         }
       };
 
@@ -5039,7 +5138,7 @@
 
         if (isAppsScriptEnv) {
           google.script.run
-            .withSuccessHandler(function(res) {
+            .withSuccessHandler(function (res) {
               if (res && res.status === 'success') {
                 currentSheetsStatus = 'connected';
                 const now = new Date();
@@ -5047,7 +5146,7 @@
                 updateSheetsStatusUI();
               }
             })
-            .withFailureHandler(function(err) {
+            .withFailureHandler(function (err) {
               console.warn('Granular sync gagal, fallback ke queue saveAll:', err);
               triggerGoogleSheetsSync();
             })
@@ -5061,19 +5160,19 @@
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
           })
-          .then(r => r.json())
-          .then(res => {
-            if (res && res.status === 'success') {
-              currentSheetsStatus = 'connected';
-              const now = new Date();
-              lastSheetsSyncTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-              updateSheetsStatusUI();
-            }
-          })
-          .catch(err => {
-            console.warn('Granular fetch gagal, fallback ke saveAll:', err);
-            triggerGoogleSheetsSync();
-          });
+            .then(r => r.json())
+            .then(res => {
+              if (res && res.status === 'success') {
+                currentSheetsStatus = 'connected';
+                const now = new Date();
+                lastSheetsSyncTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                updateSheetsStatusUI();
+              }
+            })
+            .catch(err => {
+              console.warn('Granular fetch gagal, fallback ke saveAll:', err);
+              triggerGoogleSheetsSync();
+            });
         }
       }
 
@@ -6943,7 +7042,7 @@
         const left = Math.max(0, Math.round((screen.availWidth - width) / 2));
         const top = Math.max(0, Math.round((screen.availHeight - height) / 2));
 
-        try { localStorage.removeItem(SCANNER_STORAGE_KEY); } catch (e) {}
+        try { localStorage.removeItem(SCANNER_STORAGE_KEY); } catch (e) { }
 
         barcodeScannerWindow = window.open(
           '',
@@ -7292,14 +7391,14 @@
               <div style="font-size:12px;font-weight:700;color:var(--ink-700);margin-bottom:8px;">Sebaran Stok per Lokasi Gudang:</div>
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;">
                 ${store.warehouses.map(w => {
-                  const qty = (p.stocks && p.stocks[w.name]) || 0;
-                  return `
+          const qty = (p.stocks && p.stocks[w.name]) || 0;
+          return `
                     <div style="padding:8px 10px;border-radius:8px;background:var(--ink-100);display:flex;justify-content:space-between;align-items:center;">
                       <span style="font-size:11px;color:var(--ink-700);">${escapeHtml(w.name)}</span>
                       <strong style="font-size:13px;color:var(--ink-900);">${qty} ${escapeHtml(p.unit)}</strong>
                     </div>
                   `;
-                }).join('')}
+        }).join('')}
               </div>
             </div>
 
@@ -7924,9 +8023,9 @@
                   ` : `
                     <div class="bars" style="display:flex;flex-direction:column;gap:12px;">
                       ${topOutProducts.map((x, idx) => {
-                        const rankLabel = idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`;
-                        const pct = totalTopOutQty > 0 ? Math.round((x.qty / totalTopOutQty) * 100) : 0;
-                        return `
+          const rankLabel = idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`;
+          const pct = totalTopOutQty > 0 ? Math.round((x.qty / totalTopOutQty) * 100) : 0;
+          return `
                           <div class="bar-item" style="cursor:pointer;padding:6px 8px;border-radius:8px;transition:background 0.15s;" data-action="view-stock-card" data-id="${x.id}" title="Klik untuk buka kartu stok ${escapeHtml(x.name)}">
                             <div class="bar-label" style="display:flex;align-items:center;gap:8px;min-width:140px;">
                               <span style="font-weight:800;font-size:12px;color:var(--brand-700);width:28px;">${rankLabel}</span>
@@ -7943,7 +8042,7 @@
                             </div>
                           </div>
                         `;
-                      }).join('')}
+        }).join('')}
                     </div>
                   `}
                 </div>
@@ -8184,7 +8283,7 @@
         const [stStateName, stBadgeClass] = stockState(prod, allowedWarehouse);
 
         const typeBadge = (type) => {
-          switch(type) {
+          switch (type) {
             case 'IN': return '<span class="badge success">Barang Masuk</span>';
             case 'OUT': return '<span class="badge danger">Barang Keluar</span>';
             case 'TRANSFER_IN': return '<span class="badge info">Transfer Masuk</span>';
@@ -8387,9 +8486,9 @@
         const filteredProducts = products.filter(p => {
           if (!q) return true;
           return (p.name || '').toLowerCase().includes(q) ||
-                 (p.sku || '').toLowerCase().includes(q) ||
-                 (p.category || '').toLowerCase().includes(q) ||
-                 (p.barcode || '').toLowerCase().includes(q);
+            (p.sku || '').toLowerCase().includes(q) ||
+            (p.category || '').toLowerCase().includes(q) ||
+            (p.barcode || '').toLowerCase().includes(q);
         });
 
         const selectedIds = state.barcodeSelectedProductIds || [];
@@ -8489,8 +8588,8 @@
                         No item with a barcode
                       </div>
                     ` : filteredProducts.map(p => {
-                      const isChecked = selectedIds.includes(p.id);
-                      return `
+          const isChecked = selectedIds.includes(p.id);
+          return `
                         <label style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .12s;background:${isChecked ? 'var(--brand-50)' : 'transparent'};margin-bottom:2px;">
                           <input type="checkbox" class="barcode-product-checkbox" data-id="${p.id}" ${isChecked ? 'checked' : ''} style="width:17px;height:17px;accent-color:var(--brand-600);cursor:pointer;">
                           <div style="flex:1;min-width:0;">
@@ -8504,7 +8603,7 @@
                           ${p.buyPrice ? `<span style="font-size:11px;font-weight:700;color:var(--ink-700);white-space:nowrap;">Rp ${rupiah.format(p.buyPrice)}</span>` : ''}
                         </label>
                       `;
-                    }).join('')}
+        }).join('')}
                   </div>
                 `}
               </div>
@@ -10325,6 +10424,52 @@
                 </div>
               </article>
 
+              <!-- Integrasi Google Gemini AI -->
+              <article class="card">
+                <div class="card-header" style="padding:16px 20px;border-bottom:1px solid var(--ink-100);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+                  <div>
+                    <h3 style="margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px">
+                      <span>🤖 Integrasi Google Gemini AI</span>
+                    </h3>
+                    <p style="margin:2px 0 0;font-size:12px;color:var(--ink-500)">Gunakan API Key Google Gemini eksternal Anda untuk asisten chatbot analitik stok cerdas real-time.</p>
+                  </div>
+                  <span class="badge ${store.settings.hasGeminiKey ? 'success' : 'neutral'}" style="font-size:11px;padding:4px 10px;font-weight:500">
+                    ${store.settings.hasGeminiKey ? '🟢 Gemini AI Aktif' : '⚪ Mode Analisis Lokal (Offline)'}
+                  </span>
+                </div>
+                <div class="card-body" style="padding:20px">
+                  <div class="form-grid">
+                    <div class="field span-2">
+                      <label for="cfgGeminiKey">Google Gemini API Key</label>
+                      <div style="position:relative">
+                        <input class="control" type="password" id="cfgGeminiKey" value="${escapeHtml(store.settings.geminiApiKey || '')}" placeholder="Masukkan API Key Google Gemini (AIzaSy...)" style="font-family:monospace;font-size:12px;padding-right:42px">
+                        <button type="button" data-action="toggle-gemini-key-vis" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;padding:6px;color:var(--ink-500);display:flex;align-items:center" title="Tampilkan/Sembunyikan API Key">
+                          ${icon('eye')}
+                        </button>
+                      </div>
+                      <p style="font-size:11px;color:var(--ink-500);margin:6px 0 0">
+                        Belum punya API Key? Dapatkan secara gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--brand-600);font-weight:600;text-decoration:underline">Google AI Studio (aistudio.google.com)</a>. Kunci disimpan aman pada spreadsheet database Anda.
+                      </p>
+                    </div>
+                    <div class="field">
+                      <label for="cfgGeminiModel">Pilihan Model Gemini</label>
+                      <select class="control" id="cfgGeminiModel">
+                        <option value="gemini-2.5-flash" ${(store.settings.geminiModel || 'gemini-2.5-flash') === 'gemini-2.5-flash' ? 'selected' : ''}>Gemini 2.5 Flash (Cepat, Cerdas & Kuota Besar — Rekomendasi)</option>
+                        <option value="gemini-2.0-flash" ${store.settings.geminiModel === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash (Sangat Cepat)</option>
+                        <option value="gemini-1.5-flash" ${store.settings.geminiModel === 'gemini-1.5-flash' ? 'selected' : ''}>Gemini 1.5 Flash (Stabil)</option>
+                        <option value="gemini-2.5-pro" ${store.settings.geminiModel === 'gemini-2.5-pro' ? 'selected' : ''}>Gemini 2.5 Pro (Penalaran Rumit & Mendalam)</option>
+                      </select>
+                    </div>
+                    <div class="field" style="display:flex;align-items:flex-end">
+                      <button type="button" class="btn btn-secondary btn-sm" data-action="test-gemini-key" style="height:38px;width:100%;justify-content:center;gap:6px">
+                        ${icon('refresh')} Tes Koneksi API Key
+                      </button>
+                    </div>
+                  </div>
+                  <div id="geminiTestFeedback" style="margin-top:12px;display:none;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5"></div>
+                </div>
+              </article>
+
             </div>
 
             <!-- Status Sistem -->
@@ -10835,15 +10980,15 @@
             </div>
 
             ${renderPhotoAttachmentField({
-              containerId: 'editTxPhotoContainer',
-              photo: state.editTxPhoto,
-              cameraInputId: 'editTxCameraInput',
-              uploadInputId: 'editTxUploadInput',
-              triggerCameraAction: 'trigger-edit-tx-camera',
-              triggerUploadAction: 'trigger-edit-tx-upload',
-              removeAction: 'remove-edit-tx-photo',
-              label: 'Lampiran Bukti Foto Transaksi'
-            })}
+          containerId: 'editTxPhotoContainer',
+          photo: state.editTxPhoto,
+          cameraInputId: 'editTxCameraInput',
+          uploadInputId: 'editTxUploadInput',
+          triggerCameraAction: 'trigger-edit-tx-camera',
+          triggerUploadAction: 'trigger-edit-tx-upload',
+          removeAction: 'remove-edit-tx-photo',
+          label: 'Lampiran Bukti Foto Transaksi'
+        })}
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" data-action="close-modal">Batal</button>
@@ -12572,6 +12717,38 @@
               </div>
               <div class="field span-2">
                 <label>Nomor Referensi / Surat Jalan</label>
+                Mengubah transaksi ini akan <strong>secara otomatis merekonsiliasi saldo stok fisik di gudang</strong> dan memperbarui kartu stok sesuai perubahan barang/kuantitas terbaru.
+              </div>
+            </div>
+
+            ${hasStockError ? `
+              <div class="notice danger" style="margin-bottom:14px">
+                ${icon('alert')}
+                <div>Terdapat barang dengan jumlah melebihi stok yang tersedia di <strong>${curWh}</strong>. Mohon sesuaikan kuantitas.</div>
+              </div>
+            ` : ''}
+
+            <div class="form-grid" style="margin-bottom:16px">
+              <div class="field">
+                <label>Nomor Transaksi</label>
+                <input class="control" value="${tx.no}" disabled style="font-family:monospace;font-weight:700">
+              </div>
+              <div class="field">
+                <label>Tanggal Transaksi *</label>
+                <input class="control" id="editTxDate" type="date" value="${state.editTxDate}">
+              </div>
+              <div class="field">
+                <label>Lokasi Gudang *</label>
+                <select class="control" id="editTxWarehouse">
+                  ${whOptions.map(w => `<option value="${w}" ${curWh === w ? 'selected' : ''}>${w}</option>`).join('')}
+                </select>
+              </div>
+              <div class="field">
+                <label>${tx.type === 'Barang Masuk' ? 'Supplier / Sumber' : 'Penerima / Customer'}</label>
+                <input class="control" id="editTxParty" value="${state.editTxParty || ''}" placeholder="Nama pihak terkait">
+              </div>
+              <div class="field span-2">
+                <label>Nomor Referensi / Surat Jalan</label>
                 <input class="control" id="editTxRef" value="${state.editTxRef || ''}" placeholder="Contoh: PO-998 / SJ-001">
               </div>
             </div>
@@ -14046,6 +14223,98 @@
         `, true);
       }
 
+      async function testGeminiApiKey() {
+        const keyInput = document.getElementById('cfgGeminiKey');
+        const modelSelect = document.getElementById('cfgGeminiModel');
+        const feedbackEl = document.getElementById('geminiTestFeedback');
+        const key = keyInput ? keyInput.value.trim() : '';
+        const model = modelSelect ? modelSelect.value : 'gemini-2.5-flash';
+
+        if (!key) {
+          if (feedbackEl) {
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.background = '#fef2f2';
+            feedbackEl.style.color = '#991b1b';
+            feedbackEl.style.border = '1px solid #fecaca';
+            feedbackEl.innerHTML = '⚠️ Masukkan Google Gemini API Key terlebih dahulu sebelum melakukan tes koneksi.';
+          }
+          return showToast('Tes Gagal', 'API Key masih kosong.', true);
+        }
+
+        if (feedbackEl) {
+          feedbackEl.style.display = 'block';
+          feedbackEl.style.background = '#f0fdf4';
+          feedbackEl.style.color = '#166534';
+          feedbackEl.style.border = '1px solid #bbf7d0';
+          feedbackEl.innerHTML = '⏳ Menghubungkan ke Google Gemini AI (' + escapeHtml(model) + ')...';
+        }
+        showToast('Menguji Koneksi', 'Menghubungkan ke Google Gemini API...');
+
+        const onTestSuccess = function(res) {
+          if (res && res.status === 'success') {
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.background = '#f0fdf4';
+              feedbackEl.style.color = '#166534';
+              feedbackEl.style.border = '1px solid #bbf7d0';
+              feedbackEl.innerHTML = '✅ <strong>Koneksi Berhasil!</strong> ' + escapeHtml(res.message || 'Gemini API aktif dan siap digunakan.');
+            }
+            showToast('Koneksi Sukses', res.message || 'Gemini API Key valid!');
+          } else {
+            const errMsg = (res && res.message) || 'Koneksi gagal. Periksa kembali API Key Anda.';
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.background = '#fef2f2';
+              feedbackEl.style.color = '#991b1b';
+              feedbackEl.style.border = '1px solid #fecaca';
+              feedbackEl.innerHTML = '❌ <strong>Koneksi Gagal:</strong> ' + escapeHtml(errMsg);
+            }
+            showToast('Koneksi Gagal', errMsg, true);
+          }
+        };
+
+        const onTestFail = function(err) {
+          const errMsg = err && err.message ? err.message : String(err);
+          if (feedbackEl) {
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.background = '#fef2f2';
+            feedbackEl.style.color = '#991b1b';
+            feedbackEl.style.border = '1px solid #fecaca';
+            feedbackEl.innerHTML = '❌ <strong>Error Sistem:</strong> ' + escapeHtml(errMsg);
+          }
+          showToast('Error', errMsg, true);
+        };
+
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(onTestSuccess)
+            .withFailureHandler(onTestFail)
+            .apiTestGeminiKey(key, model);
+        } else if (storedSheetsUrl) {
+          fetch(storedSheetsUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'testGeminiKey', apiKey: key, model: model })
+          })
+          .then(r => r.json())
+          .then(onTestSuccess)
+          .catch(onTestFail);
+        } else {
+          // Direct fetch
+          fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "Tes" }] }] })
+          })
+          .then(r => r.json())
+          .then(json => {
+            if (json.candidates) onTestSuccess({ status: 'success', message: `Koneksi langsung ke Google Gemini (${model}) berhasil!` });
+            else onTestSuccess({ status: 'error', message: (json.error && json.error.message) || 'Respons tidak valid' });
+          })
+          .catch(onTestFail);
+        }
+      }
+
       // Dedicated Change Password Modal
       function openChangePasswordModal(userId = null) {
         const targetId = userId || (state.currentUser ? state.currentUser.id : 'U01');
@@ -14450,7 +14719,7 @@
         if (isAppsScriptEnv) {
           showToast('Memverifikasi...', 'Sedang memeriksa kredensial ke server...');
           google.script.run
-            .withSuccessHandler(function(res) {
+            .withSuccessHandler(function (res) {
               if (res && res.status === 'success' && res.user) {
                 completeLoginSuccess(res.user);
               } else {
@@ -14458,7 +14727,7 @@
                 showToast('Login Gagal', res?.message || 'Kredensial tidak valid', true);
               }
             })
-            .withFailureHandler(function(err) {
+            .withFailureHandler(function (err) {
               console.warn('Verifikasi server gagal, mencoba verifikasi offline lokal:', err);
               verifyLocalLogin(username, password, uInput, pInput, showLoginAlert);
             })
@@ -14474,19 +14743,19 @@
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'login', username, password })
           })
-          .then(r => r.json())
-          .then(res => {
-            if (res && res.status === 'success' && res.user) {
-              completeLoginSuccess(res.user);
-            } else {
-              showLoginAlert(res?.message || 'Login gagal. Periksa kembali username dan kata sandi.', pInput);
-              showToast('Login Gagal', res?.message || 'Kredensial tidak valid', true);
-            }
-          })
-          .catch(err => {
-            console.warn('Gagal koneksi cloud login, menggunakan verifikasi lokal:', err);
-            verifyLocalLogin(username, password, uInput, pInput, showLoginAlert);
-          });
+            .then(r => r.json())
+            .then(res => {
+              if (res && res.status === 'success' && res.user) {
+                completeLoginSuccess(res.user);
+              } else {
+                showLoginAlert(res?.message || 'Login gagal. Periksa kembali username dan kata sandi.', pInput);
+                showToast('Login Gagal', res?.message || 'Kredensial tidak valid', true);
+              }
+            })
+            .catch(err => {
+              console.warn('Gagal koneksi cloud login, menggunakan verifikasi lokal:', err);
+              verifyLocalLogin(username, password, uInput, pInput, showLoginAlert);
+            });
           return;
         }
 
@@ -14776,6 +15045,15 @@
         // Theme toggle
         if (event.target.closest('#themeToggleBtn') || event.target.closest('[data-action="toggle-theme"]')) {
           toggleTheme();
+          return;
+        }
+
+        // Toggle Gemini API Key visibility
+        if (event.target.closest('[data-action="toggle-gemini-key-vis"]')) {
+          const keyInput = document.getElementById('cfgGeminiKey');
+          if (keyInput) {
+            keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+          }
           return;
         }
 
@@ -15308,6 +15586,18 @@
         if (action === 'migrate-sheets-now') return migrateSheetsNow();
         if (action === 'open-sheets-guide-modal') return openSheetsGuideModal();
 
+        // Google Gemini Actions
+        if (action === 'toggle-gemini-key-vis') {
+          const inp = document.getElementById('cfgGeminiKey');
+          if (inp) {
+            const isPass = inp.type === 'password';
+            inp.type = isPass ? 'text' : 'password';
+            actionEl.title = isPass ? 'Sembunyikan API Key' : 'Tampilkan API Key';
+          }
+          return;
+        }
+        if (action === 'test-gemini-key') return testGeminiApiKey();
+
         // Password & Auth Actions
         if (action === 'change-password') return openChangePasswordModal(actionEl.dataset.id);
         if (action === 'save-new-password') return executeSavePassword();
@@ -15356,6 +15646,19 @@
           }
 
           addAuditLog('UPDATE', 'Pengaturan', 'Config', 'Memperbarui aturan aplikasi & identitas bisnis');
+
+          // Simpan Gemini AI Key & Model
+          const geminiKeyEl = document.getElementById('cfgGeminiKey');
+          if (geminiKeyEl) {
+            const keyVal = geminiKeyEl.value.trim();
+            store.settings.geminiApiKey = keyVal;
+            store.settings.hasGeminiKey = !!keyVal;
+          }
+          const geminiModelEl = document.getElementById('cfgGeminiModel');
+          if (geminiModelEl) {
+            store.settings.geminiModel = geminiModelEl.value || 'gemini-2.5-flash';
+          }
+
           saveStore();
           render();
           return showToast('Pengaturan Tersimpan', 'Konfigurasi inventori berhasil diperbarui.');
@@ -16590,7 +16893,7 @@
           try { return JSON.parse(localStorage.getItem(AI_FAQ_KEY) || '[]'); } catch { return []; }
         }
         function saveFAQ(list) {
-          try { localStorage.setItem(AI_FAQ_KEY, JSON.stringify(list)); } catch {}
+          try { localStorage.setItem(AI_FAQ_KEY, JSON.stringify(list)); } catch { }
         }
         function recordQuestion(q) {
           const list = loadFAQ();
@@ -17026,7 +17329,7 @@
               const b = (p.barcode || '').toLowerCase();
               const c = (p.category || '').toLowerCase();
               return n.includes(cleanQ) || s.includes(cleanQ) || b.includes(cleanQ) || c.includes(cleanQ) ||
-                     cleanQ.split(/\s+/).every(word => n.includes(word) || s.includes(word));
+                cleanQ.split(/\s+/).every(word => n.includes(word) || s.includes(word));
             });
 
             if (matches.length === 1) {
@@ -17046,17 +17349,17 @@
                 `<div class="ai-prod-title">🔍 ${escapeHtml(p.name || p.nama)}</div>` +
                 `<div class="ai-prod-meta">SKU: <code>${escapeHtml(p.sku || '-')}</code> • Kategori: <b>${escapeHtml(p.category || 'Umum')}</b></div>` +
                 `<div style="margin:8px 0;display:flex;align-items:center;gap:8px">` +
-                  `<span style="font-size:16px;font-weight:800;color:var(--brand-700)">${totalStok} ${escapeHtml(p.unit || 'pcs')}</span> ${badge}` +
+                `<span style="font-size:16px;font-weight:800;color:var(--brand-700)">${totalStok} ${escapeHtml(p.unit || 'pcs')}</span> ${badge}` +
                 `</div>` +
                 `<div style="font-size:12px;margin:6px 0;color:var(--ink-700);line-height:1.6">` +
-                  `📍 <b>Sebaran Gudang:</b><br>${whBreakdown}<br>` +
-                  `💰 Harga Satuan: <b>${formatRp(hargaVal)}</b> (Nilai Aset: <b>${formatRp(totalStok * hargaVal)}</b>)` +
+                `📍 <b>Sebaran Gudang:</b><br>${whBreakdown}<br>` +
+                `💰 Harga Satuan: <b>${formatRp(hargaVal)}</b> (Nilai Aset: <b>${formatRp(totalStok * hargaVal)}</b>)` +
                 `</div>` +
-              `</div>` +
-              renderQuickButtons([
-                { label: '⚠️ Cek Barang Kritis Lainnya', q: 'Stok apa yang hampir habis?' },
-                { label: '📊 Ringkasan Gudang', q: 'Ringkasan stok per gudang' }
-              ]);
+                `</div>` +
+                renderQuickButtons([
+                  { label: '⚠️ Cek Barang Kritis Lainnya', q: 'Stok apa yang hampir habis?' },
+                  { label: '📊 Ringkasan Gudang', q: 'Ringkasan stok per gudang' }
+                ]);
             } else if (matches.length > 1) {
               const rows = matches.slice(0, 6).map(p => {
                 const totalQ = getStock(p, 'Semua Gudang');
@@ -17120,6 +17423,32 @@
           if (el) el.remove();
         }
 
+        function formatAiResponse(raw) {
+          if (!raw) return '';
+          let t = String(raw);
+          // Escape HTML tags to prevent XSS
+          t = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          // Code blocks ```code```
+          t = t.replace(/```([\s\S]*?)```/g, '<pre style="background:#0f172a;color:#f8fafc;padding:8px 10px;border-radius:6px;font-size:11px;overflow-x:auto;margin:6px 0;"><code>$1</code></pre>');
+          // Inline code `code`
+          t = t.replace(/`([^`]+)`/g, '<code style="background:#f1f5f9;color:#0f172a;padding:1px 4px;border-radius:4px;font-size:11px;">$1</code>');
+          // Markdown bold **text**
+          t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          // Markdown italic *text*
+          t = t.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+          // Headings ### and ##
+          t = t.replace(/^### (.*$)/gim, '<div style="font-weight:700;font-size:13px;margin:8px 0 3px;color:#1e293b;">$1</div>');
+          t = t.replace(/^## (.*$)/gim, '<div style="font-weight:700;font-size:14px;margin:10px 0 4px;color:#0f172a;">$1</div>');
+          // Bullet list items
+          t = t.replace(/^[\*\-] (.*$)/gim, '<div style="display:flex;gap:6px;margin:3px 0;align-items:flex-start;"><span style="color:#3b82f6;font-size:13px;line-height:1.2;">•</span><span>$1</span></div>');
+          // Numbered list items
+          t = t.replace(/^(\d+)\. (.*$)/gim, '<div style="display:flex;gap:6px;margin:3px 0;align-items:flex-start;"><span style="font-weight:600;color:#3b82f6;font-size:11px;line-height:1.4;">$1.</span><span>$2</span></div>');
+          // Multiple newlines to spaced separation
+          t = t.replace(/\n{2,}/g, '<div style="height:6px;"></div>');
+          t = t.replace(/\n/g, '<br>');
+          return t;
+        }
+
         function sendChat(q) {
           if (!q || !q.trim()) return;
           const query = q.trim();
@@ -17129,20 +17458,217 @@
 
           showTyping();
 
-          // Respon super cepat dan cerdas (80ms - 130ms agar animasi tetap natural)
-          setTimeout(() => {
+          // Ambil API Key dan model dari Settings atau Local Storage
+          const customApiKey = (store.settings && store.settings.geminiApiKey) || localStorage.getItem('stokkita_gemini_api_key') || '';
+          const customModel = (store.settings && store.settings.geminiModel) || 'gemini-2.5-flash';
+          const hasGeminiKey = !!(customApiKey || (store.settings && store.settings.hasGeminiKey));
+
+          if (hasGeminiKey) {
+            // Bangun konteks stok realtime yang komprehensif
+            let stockContext = '';
             try {
-              hideTyping();
-              const answer = analyzeQuery(query);
-              appendMessage(answer, 'bot');
-              chatHistory.push({ role: 'bot', text: answer });
-              renderFAQChips();
-            } catch (err) {
-              hideTyping();
-              console.error('AI Chat Error:', err);
-              appendMessage('Maaf, ada kendala saat menganalisis: ' + escapeHtml(err.message), 'bot');
+              const products = store.products || [];
+              const warehouses = store.warehouses || [];
+              const transactions = store.transactions || [];
+
+              let totalUnits = 0;
+              let totalValuation = 0;
+              const habisList = [];
+              const kritisList = [];
+              const amanList = [];
+
+              products.forEach(p => {
+                const total = Object.values(p.stocks || {}).reduce((s, v) => s + Number(v || 0), 0);
+                const minStock = p.minStock || p.min || 0;
+                const buyPrice = Number(p.buyPrice || p.buy || 0);
+                const sellPrice = Number(p.sellPrice || p.price || 0);
+                totalUnits += total;
+                totalValuation += total * buyPrice;
+
+                const itemInfo = `${p.name} (SKU: ${p.sku}, Kat: ${p.category || '-'}, Stok: ${total} ${p.unit || 'pcs'}, Min: ${minStock}, Beli: Rp${buyPrice.toLocaleString('id-ID')}, Jual: Rp${sellPrice.toLocaleString('id-ID')})`;
+                if (total <= 0) habisList.push(itemInfo);
+                else if (total <= minStock) kritisList.push(itemInfo);
+                else amanList.push(itemInfo);
+              });
+
+              stockContext += `=== RINGKASAN INVENTORI REALTIME ===\n`;
+              stockContext += `Waktu Analisis: ${new Date().toLocaleString('id-ID')}\n`;
+              stockContext += `Total SKU Terdaftar: ${products.length}\n`;
+              stockContext += `Total Unit Fisik: ${totalUnits.toLocaleString('id-ID')} unit\n`;
+              stockContext += `Total Valuasi Aset Stok: Rp ${totalValuation.toLocaleString('id-ID')}\n`;
+              stockContext += `Daftar Gudang (${warehouses.length}): ${warehouses.map(w => w.name).join(', ') || 'Utama'}\n\n`;
+
+              stockContext += `[1. STOK HABIS (0 QTY) - ${habisList.length} SKU]\n`;
+              if (habisList.length > 0) {
+                stockContext += habisList.slice(0, 20).map(x => '- ' + x).join('\n') + '\n';
+                if (habisList.length > 20) stockContext += `...dan ${habisList.length - 20} SKU habis lainnya.\n`;
+              } else {
+                stockContext += 'Tidak ada stok yang habis (0).\n';
+              }
+              stockContext += '\n';
+
+              stockContext += `[2. STOK KRITIS (<= MINIMAL) - ${kritisList.length} SKU]\n`;
+              if (kritisList.length > 0) {
+                stockContext += kritisList.slice(0, 20).map(x => '- ' + x).join('\n') + '\n';
+                if (kritisList.length > 20) stockContext += `...dan ${kritisList.length - 20} SKU kritis lainnya.\n`;
+              } else {
+                stockContext += 'Semua stok berada di atas batas minimal.\n';
+              }
+              stockContext += '\n';
+
+              stockContext += `[3. SAMPLE STOK AMAN - ${amanList.length} SKU]\n`;
+              if (amanList.length > 0) {
+                stockContext += amanList.slice(0, 15).map(x => '- ' + x).join('\n') + '\n';
+                if (amanList.length > 15) stockContext += `...dan ${amanList.length - 15} SKU lainnya.\n`;
+              }
+              stockContext += '\n';
+
+              // Riwayat 10 transaksi terakhir
+              const recentTx = transactions.slice(0, 10);
+              if (recentTx.length > 0) {
+                stockContext += `[4. 10 TRANSAKSI TERAKHIR]\n`;
+                recentTx.forEach(t => {
+                  stockContext += `- No: ${t.no} | Tgl: ${t.date} | Jenis: ${t.type} | Gudang: ${t.warehouse} | Qty: ${t.qty} | Pihak: ${t.party || '-'} | Status: ${t.status}\n`;
+                });
+              }
+            } catch (ctxErr) {
+              stockContext = 'Gagal membangun konteks stok: ' + ctxErr.message;
             }
-          }, 80 + Math.random() * 50);
+
+            // Eksekusi pemanggilan Gemini AI via google.script.run (server-side UrlFetchApp)
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler(function (result) {
+                  hideTyping();
+                  if (result && result.status === 'success' && result.answer) {
+                    const formatted = formatAiResponse(result.answer);
+                    appendMessage(formatted, 'bot');
+                    chatHistory.push({ role: 'bot', text: result.answer });
+                  } else if (result && result.status === 'fallback') {
+                    const answer = analyzeQuery(query);
+                    appendMessage(answer, 'bot');
+                    chatHistory.push({ role: 'bot', text: answer });
+                  } else {
+                    const errMsg = (result && result.message) || 'Respons tidak valid dari server.';
+                    appendMessage('⚠️ <b>Gemini AI Error:</b> ' + escapeHtml(errMsg) + '<br><small>Mengalihkan ke analisis lokal sebagai fallback...</small>', 'bot');
+                    const answer = analyzeQuery(query);
+                    appendMessage(answer, 'bot');
+                    chatHistory.push({ role: 'bot', text: answer });
+                  }
+                  renderFAQChips();
+                })
+                .withFailureHandler(function (err) {
+                  hideTyping();
+                  console.error('Gemini API Call Error:', err);
+                  appendMessage('⚠️ Koneksi ke server AI gagal. Menggunakan analisis lokal...', 'bot');
+                  const answer = analyzeQuery(query);
+                  appendMessage(answer, 'bot');
+                  chatHistory.push({ role: 'bot', text: answer });
+                  renderFAQChips();
+                })
+                .apiAskGemini(query, stockContext, customApiKey, customModel);
+            } else {
+              // Jika di luar runtime GAS (misal browser lokal/HTTP POST)
+              const sheetsUrl = storedSheetsUrl || '';
+              if (sheetsUrl) {
+                fetch(sheetsUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'text/plain' },
+                  body: JSON.stringify({
+                    action: 'askGemini',
+                    query: query,
+                    stockContext: stockContext,
+                    apiKey: customApiKey,
+                    model: customModel
+                  })
+                })
+                  .then(r => r.json())
+                  .then(result => {
+                    hideTyping();
+                    if (result && result.status === 'success' && result.answer) {
+                      const formatted = formatAiResponse(result.answer);
+                      appendMessage(formatted, 'bot');
+                      chatHistory.push({ role: 'bot', text: result.answer });
+                    } else {
+                      const answer = analyzeQuery(query);
+                      appendMessage(answer, 'bot');
+                      chatHistory.push({ role: 'bot', text: answer });
+                    }
+                    renderFAQChips();
+                  })
+                  .catch(err => {
+                    hideTyping();
+                    console.error('HTTP Gemini Error:', err);
+                    const answer = analyzeQuery(query);
+                    appendMessage(answer, 'bot');
+                    chatHistory.push({ role: 'bot', text: answer });
+                    renderFAQChips();
+                  });
+              } else if (customApiKey) {
+                // Fallback direct browser fetch jika standalone
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${customModel}:generateContent?key=${encodeURIComponent(customApiKey)}`;
+                const prompt = `Anda adalah Asisten AI Senior Manajemen Stok & Inventori untuk aplikasi StokKita.\n` +
+                  `Analisis data stok realtime berikut dan jawab pertanyaan user dengan ramah, profesional, dan berbasis data akurat:\n\n` +
+                  `DATA REALTIME:\n${stockContext}\n\n` +
+                  `PERTANYAAN USER:\n${query}\n\n` +
+                  `Berikan rekomendasi yang praktis dan terstruktur (gunakan bullet poin jika perlu). Jawab dalam Bahasa Indonesia.`;
+
+                fetch(apiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { maxOutputTokens: 1500, temperature: 0.3 }
+                  })
+                })
+                  .then(r => r.json())
+                  .then(data => {
+                    hideTyping();
+                    if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                      const answerText = data.candidates[0].content.parts.map(p => p.text).join('\n');
+                      appendMessage(formatAiResponse(answerText), 'bot');
+                      chatHistory.push({ role: 'bot', text: answerText });
+                    } else {
+                      const answer = analyzeQuery(query);
+                      appendMessage(answer, 'bot');
+                      chatHistory.push({ role: 'bot', text: answer });
+                    }
+                    renderFAQChips();
+                  })
+                  .catch(err => {
+                    hideTyping();
+                    console.error('Direct Gemini Fetch Error:', err);
+                    const answer = analyzeQuery(query);
+                    appendMessage(answer, 'bot');
+                    chatHistory.push({ role: 'bot', text: answer });
+                    renderFAQChips();
+                  });
+              } else {
+                setTimeout(() => {
+                  hideTyping();
+                  const answer = analyzeQuery(query);
+                  appendMessage(answer, 'bot');
+                  chatHistory.push({ role: 'bot', text: answer });
+                  renderFAQChips();
+                }, 80 + Math.random() * 50);
+              }
+            }
+          } else {
+            // Belum ada Gemini Key — gunakan analisis lokal
+            setTimeout(() => {
+              try {
+                hideTyping();
+                const answer = analyzeQuery(query);
+                appendMessage(answer, 'bot');
+                chatHistory.push({ role: 'bot', text: answer });
+                renderFAQChips();
+              } catch (err) {
+                hideTyping();
+                console.error('AI Chat Error:', err);
+                appendMessage('Maaf, ada kendala saat menganalisis: ' + escapeHtml(err.message), 'bot');
+              }
+            }, 80 + Math.random() * 50);
+          }
         }
 
         function renderFAQChips() {
@@ -17160,10 +17686,21 @@
           const panel = document.getElementById('aiChatPanel');
           panel.classList.add('open');
           document.getElementById('aiChatInput').focus();
+
+          const hasGem = !!((store.settings && store.settings.geminiApiKey) || (store.settings && store.settings.hasGeminiKey) || localStorage.getItem('stokkita_gemini_api_key'));
+          const modelName = (store.settings && store.settings.geminiModel) || 'gemini-2.5-flash';
+          const subEl = document.getElementById('aiChatSubtitle');
+          if (subEl) {
+            subEl.textContent = hasGem ? `Gemini AI (${modelName}) • Online` : 'Analisis stok cerdas • Siap';
+          }
+
           // Tampilkan pesan selamat datang jika kosong
           if (chatHistory.length === 0) {
             const bizName = (store.settings && store.settings.businessName) || 'Bisnis Anda';
-            appendMessage(`👋 Halo! Saya <b>Asisten AI StokKita</b>.<br>Saya bisa membantu Anda menganalisis data stok <b>${bizName}</b>.<br><br>Silakan tanya apapun tentang inventori Anda, atau pilih pertanyaan di atas! 🚀`, 'bot');
+            const aiMode = hasGem
+              ? `🟢 <b>Mode Gemini AI Aktif (<code>${escapeHtml(modelName)}</code>)</b> — Menganalisis inventori secara komprehensif.`
+              : `🔵 <b>Mode Analisis Lokal</b> — Hubungkan Google Gemini API Key di menu <b>Pengaturan</b> untuk analisis mendalam bertenaga AI.`;
+            appendMessage(`👋 Halo! Saya <b>Asisten AI StokKita</b>.<br>Saya dapat menganalisis status stok, barang kritis, valuasi, dan mutasi <b>${escapeHtml(bizName)}</b> secara realtime.<br><div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:11px;">${aiMode}</div><br>Silakan ajukan pertanyaan atau klik saran cepat di atas! 🚀`, 'bot');
           }
         }
 
@@ -17174,6 +17711,9 @@
 
         // ── Build DOM ──────────────────────────────────────────────────
         function buildChatWidget() {
+          const hasGem = !!((store.settings && store.settings.geminiApiKey) || (store.settings && store.settings.hasGeminiKey) || localStorage.getItem('stokkita_gemini_api_key'));
+          const modelName = (store.settings && store.settings.geminiModel) || 'gemini-2.5-flash';
+
           // Chat Panel
           const panel = document.createElement('div');
           panel.id = 'aiChatPanel';
@@ -17184,8 +17724,11 @@
               <div class="aichat-avatar">🤖</div>
               <div class="aichat-title">
                 <strong>Asisten AI StokKita</strong>
-                <span>Analisis stok cerdas • Selalu online</span>
+                <span id="aiChatSubtitle">${hasGem ? `Gemini AI (${modelName}) • Online` : 'Analisis stok cerdas • Siap'}</span>
               </div>
+              <button class="aichat-close-btn" id="aiChatClearBtn" title="Bersihkan chat" aria-label="Bersihkan riwayat chat" style="margin-right:2px;background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;border-radius:6px;display:inline-flex;align-items:center;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              </button>
               <button class="aichat-close-btn" id="aiChatCloseBtn" aria-label="Tutup chat">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
               </button>
@@ -17227,6 +17770,15 @@
           // Events
           btn.addEventListener('click', () => panelOpen ? closePanel() : openPanel());
           document.getElementById('aiChatCloseBtn').addEventListener('click', closePanel);
+          const clearBtn = document.getElementById('aiChatClearBtn');
+          if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+              chatHistory = [];
+              const msgBox = document.getElementById('aiChatMessages');
+              if (msgBox) msgBox.innerHTML = '';
+              openPanel();
+            });
+          }
 
           document.getElementById('aiChatSendBtn').addEventListener('click', () => {
             const inp = document.getElementById('aiChatInput');
@@ -17246,7 +17798,7 @@
           });
 
           // Auto-resize textarea
-          document.getElementById('aiChatInput').addEventListener('input', function() {
+          document.getElementById('aiChatInput').addEventListener('input', function () {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 90) + 'px';
           });
