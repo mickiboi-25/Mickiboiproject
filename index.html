@@ -12741,6 +12741,21 @@
         const notesInput = document.getElementById('modalTxNotes')?.value || state.transactionNotes || '';
 
         const lineProducts = (state.transactionLines || []).map(l => ({
+          ...l,
+          product: store.products.find(p => p.id === l.productId)
+        })).filter(l => l.product);
+
+        if (lineProducts.length === 0) {
+          return showToast('Daftar Kosong', 'Tambahkan minimal 1 barang terlebih dahulu.', true);
+        }
+
+        if (isOut && store.settings?.rejectNegativeStock) {
+          const overLine = lineProducts.find(l => Number(l.qty) > getProductWarehouseStock(l.product, warehouse));
+          if (overLine) {
+            return showToast('Stok Tidak Cukup', `Stok ${overLine.product.name} di ${warehouse} tidak mencukupi.`, true);
+          }
+        }
+
         const txNo = generateCustomTransactionNo(isOut ? 'out' : 'in', dateInput);
         const totalQty = lineProducts.reduce((s, l) => s + Number(l.qty), 0);
         const currentUser = state.currentUser ? state.currentUser.name : (state.role === 'ADMIN' ? 'Administrator' : 'Staf');
