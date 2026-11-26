@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * STOKKITA — GOOGLE APPS SCRIPT DATABASE BACKEND (code.gs)
+ * STOKKITA: GOOGLE APPS SCRIPT DATABASE BACKEND (code.gs)
  * ==============================================================================
  * Skrip ini bertindak sebagai API Cloud Database untuk aplikasi StokKita Inventori.
  * Seluruh data disimpan dan disinkronkan secara terstruktur pada Google Spreadsheet:
@@ -80,7 +80,7 @@ function doGet(e) {
     // 2. Setup database sheet (dilindungi token admin agar tidak dipicu tanpa izin via browser)
     if (action === 'setup') {
       const token = (e && e.parameter && e.parameter.token) || '';
-      if (token !== 'STOKKITA_SETUP_SECRET') {
+      if (token !== (PropertiesService.getScriptProperties().getProperty('SETUP_TOKEN') || 'STOKKITA_SETUP_SECRET')) {
         return jsonResponse({
           status: 'error',
           message: 'Akses ditolak. Setup database hanya dapat dijalankan langsung dari Apps Script Editor atau dengan token otorisasi admin.'
@@ -97,7 +97,7 @@ function doGet(e) {
     // 3. Migrasi database otomatis (dilindungi token admin)
     if (action === 'migrate') {
       const token = (e && e.parameter && e.parameter.token) || '';
-      if (token !== 'STOKKITA_SETUP_SECRET') {
+      if (token !== (PropertiesService.getScriptProperties().getProperty('SETUP_TOKEN') || 'STOKKITA_SETUP_SECRET')) {
         return jsonResponse({
           status: 'error',
           message: 'Akses ditolak. Migrasi database hanya dapat dijalankan langsung dari Apps Script Editor atau dengan token otorisasi admin.'
@@ -138,7 +138,7 @@ function doGet(e) {
     // Ini memungkinkan seluruh aplikasi berjalan 100% langsung di link Google Apps Script tanpa server eksternal.
     try {
       return HtmlService.createHtmlOutputFromFile('index')
-        .setTitle('StokKita — Sistem Manajemen Inventaris Multi-Gudang')
+        .setTitle('StokKita: Sistem Manajemen Inventaris Multi-Gudang')
         .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     } catch (htmlErr) {
@@ -220,8 +220,12 @@ function apiLogin(username, password) {
     if (!user) {
       return { status: 'error', message: 'Username tidak ditemukan!' };
     }
-    if (String(user.password || '').trim() !== pClean) {
+    if (!verifyPassword(pClean, user.password)) {
       return { status: 'error', message: 'Kata sandi salah!' };
+    }
+    // Jika password di sheet masih plain text, upgrade otomatis ke hash SHA-256
+    if (String(user.password || '').trim() === pClean && pClean.length !== 64) {
+      user.password = hashPassword(pClean);
     }
     if (user.active === false || String(user.active).toLowerCase() === 'false') {
       return { status: 'error', message: 'Akun Anda dinonaktifkan oleh Administrator.' };
@@ -259,7 +263,15 @@ function apiLogin(username, password) {
 }
 
 function apiAppendTransaction(txPayload) {
-  return handleAppendTransactionServer(txPayload);
+  var payload = txPayload;
+  if (typeof txPayload === 'string') {
+    try {
+      payload = JSON.parse(txPayload);
+    } catch (e) {
+      return { status: 'error', message: 'Gagal parse JSON: ' + e.toString() };
+    }
+  }
+  return handleAppendTransactionServer(payload);
 }
 
 function apiSaveAll(dataPayload) {
@@ -284,17 +296,71 @@ function apiMigrate() {
   }
 }
 
-function apiAskGemini(query, stockContext, customApiKey, customModel, customTone, customPrompt) {
+function resolveAiEndpointServer(provider, baseUrl) {
+  const p = String(provider || 'gemini').trim().toLowerCase();
+  const map = {
+    openai: 'https://api.openai.com/v1/chat/completions',
+    groq: 'https://api.groq.com/openai/v1/chat/completions',
+    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    deepseek: 'https://api.deepseek.com/chat/completions'
+  };
+  if (map[p]) return map[p];
+  if (p === 'custom') {
+    let url = String(baseUrl || '').trim();
+    if (!url) return '';
+    if (!/\/chat\/completions\/?$/i.test(url)) {
+      url = url.replace(/\/+$/, '') + '/chat/completions';
+    }
+    return url;
+  }
+  return '';
+}
+
+function requestOpenAICompatibleServer(endpoint, apiKey, model, systemPrompt, userMessage) {
+  const payload = {
+    model: model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage }
+    ],
+    temperature: 0.3,
+    max_tokens: 1500
+  };
+  const response = UrlFetchApp.fetch(endpoint, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const statusCode = response.getResponseCode();
+  const rawText = response.getContentText();
+  let respJson = {};
+  try { respJson = JSON.parse(rawText); } catch (e) {}
+  if (statusCode === 200 && respJson.choices && respJson.choices.length > 0) {
+    const msg = respJson.choices[0].message;
+    const text = msg && msg.content ? String(msg.content) : '';
+    return { status: 'success', answer: text, modelUsed: model };
+  }
+  const errMsg = (respJson.error && (respJson.error.message || respJson.error)) || rawText || ('HTTP ' + statusCode);
+  return { status: 'error', message: String(errMsg), statusCode: statusCode };
+}
+
+function apiAskGemini(query, stockContext, customApiKey, customModel, customTone, customPrompt, customProvider, customBaseUrl) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const settings = readSettingsSheet(ss);
+    const provider = String((customProvider && String(customProvider).trim()) || (settings && settings.aiProvider ? String(settings.aiProvider).trim() : 'gemini')).toLowerCase();
+    const baseUrl = (customBaseUrl !== undefined && customBaseUrl !== null && String(customBaseUrl).trim()) ? String(customBaseUrl).trim() : (settings && settings.aiBaseUrl ? String(settings.aiBaseUrl).trim() : '');
     const apiKey = (customApiKey && String(customApiKey).trim()) || (settings && settings.geminiApiKey ? String(settings.geminiApiKey).trim() : '');
     let model = (customModel && String(customModel).trim()) || (settings && settings.geminiModel ? String(settings.geminiModel).trim() : 'gemini-2.5-flash');
     const tone = (customTone && String(customTone).trim()) || (settings && settings.geminiTone ? String(settings.geminiTone).trim() : 'casual');
     const userPrompt = (customPrompt !== undefined && customPrompt !== null ? String(customPrompt).trim() : (settings && settings.geminiCustomPrompt ? String(settings.geminiCustomPrompt).trim() : ''));
 
     if (!apiKey) {
-      return { status: 'fallback', message: 'Gemini API Key belum dikonfigurasi di Pengaturan.' };
+      return { status: 'fallback', message: 'API Key AI belum dikonfigurasi di Pengaturan.' };
     }
 
     let toneInstruction = '';
@@ -304,7 +370,7 @@ function apiAskGemini(query, stockContext, customApiKey, customModel, customTone
         "2. Jawab dengan SINGKAT, JELAS, dan LANGSUNG PADA INTI DATA tanpa bertele-tele.\n" +
         "3. Hindari basa-basi pembuka dan penutup yang panjang (jangan mengulang 'Berdasarkan data inventori...').\n" +
         "4. Jika ditanya stok barang tertentu, langsung sebutkan jumlahnya, satuannya, lokasinya di gudang mana, dan statusnya (aman/kritis/habis).\n" +
-        "5. Gunakan teks tebal **angka/nama** agar mudah dibaca sekilas. Gunakan emoji wajar (👍, 📦, ⚠️) agar interaktif.\n";
+        "5. Gunakan teks tebal **angka/nama** dan format poin yang rapi agar mudah dibaca sekilas.\n";
     } else if (tone === 'formal') {
       toneInstruction = "ATURAN GAYA BICARA:\n" +
         "1. Gunakan Bahasa Indonesia yang formal, profesional, dan terstruktur.\n" +
@@ -315,10 +381,18 @@ function apiAskGemini(query, stockContext, customApiKey, customModel, customTone
       toneInstruction += `\nINSTRUKSI KHUSUS DARI PENGGUNA:\n${userPrompt}\n`;
     }
 
-    const systemPrompt = "Anda adalah Asisten AI Cerdas untuk aplikasi manajemen stok dan inventori 'StokKita'.\n" +
-      toneInstruction;
+    const systemPrompt = "Anda adalah Asisten Inventori untuk aplikasi manajemen stok 'StokKita'.\n" + toneInstruction;
+    const userMessage = `[DATA INVENTORI REALTIME TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN / INSTRUKSI PENGGUNA]:\n${query}`;
 
-    const promptText = `${systemPrompt}\n\n[DATA INVENTORI REALTIME TERKINI]:\n${stockContext || 'Tidak ada data stok tambahan.'}\n\n[PERTANYAAN / INSTRUKSI PENGGUNA]:\n${query}`;
+    if (provider !== 'gemini') {
+      const endpoint = resolveAiEndpointServer(provider, baseUrl);
+      if (!endpoint) {
+        return { status: 'error', message: 'Base URL endpoint AI kustom belum diisi.' };
+      }
+      return requestOpenAICompatibleServer(endpoint, apiKey, model, systemPrompt, userMessage);
+    }
+
+    const promptText = `${systemPrompt}\n\n${userMessage}`;
 
     function requestGemini(mdl) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${apiKey}`;
@@ -364,13 +438,27 @@ function apiAskGemini(query, stockContext, customApiKey, customModel, customTone
   }
 }
 
-function apiTestGeminiKey(apiKey, model) {
+function apiTestGeminiKey(apiKey, model, provider, baseUrl) {
   try {
     const key = String(apiKey || '').trim();
-    const mdl = String(model || 'gemini-2.5-flash').trim();
+    const prov = String(provider || 'gemini').trim().toLowerCase();
+    const mdl = String(model || (prov === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o-mini')).trim();
     if (!key) {
       return { status: 'error', message: 'API Key tidak boleh kosong.' };
     }
+
+    if (prov !== 'gemini') {
+      const endpoint = resolveAiEndpointServer(prov, baseUrl);
+      if (!endpoint) {
+        return { status: 'error', message: 'Base URL endpoint AI kustom tidak boleh kosong.' };
+      }
+      const res = requestOpenAICompatibleServer(endpoint, key, mdl, 'Tes koneksi singkat.', "Jawab satu kata: 'BERHASIL'");
+      if (res.status === 'success') {
+        return { status: 'success', message: `Koneksi berhasil! Provider ${prov.toUpperCase()} (${mdl}) aktif dan siap digunakan.` };
+      }
+      return res;
+    }
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${key}`;
     const payload = {
       contents: [{ parts: [{ text: "Tes koneksi. Jawab persis satu kata: 'BERHASIL'" }] }]
@@ -422,6 +510,13 @@ function doPost(e) {
 
     // 3. Simpan seluruh data store dengan Script Lock (tetap didukung untuk full-backup / batch setting)
     if (payload.action === 'saveAll') {
+      if (!payload.data || typeof payload.data !== 'object') {
+        return jsonResponse({ status: 'error', message: 'Payload data tidak valid' });
+      }
+      // Validasi integritas: Tolak payload kosong tanpa struktur store untuk mencegah penghapusan data sepihak
+      if (!payload.data.products && !payload.data.categories && !payload.data.settings) {
+        return jsonResponse({ status: 'error', message: 'Payload data kosong atau tidak lengkap.' });
+      }
       saveAllDataToSpreadsheet(payload.data);
 
       return jsonResponse({
@@ -449,15 +544,24 @@ function doPost(e) {
       });
     }
 
-    // 6. Konsultasi Analitik Stok via Google Gemini AI
+    // 6. Konsultasi Analitik Stok via AI (Gemini / Multi-Provider)
     if (payload.action === 'askGemini') {
-      const res = apiAskGemini(payload.query, payload.stockContext, payload.customApiKey || payload.apiKey, payload.customModel || payload.model, payload.customTone || payload.tone, payload.customPrompt || payload.prompt);
+      const res = apiAskGemini(
+        payload.query,
+        payload.stockContext,
+        payload.customApiKey || payload.apiKey,
+        payload.customModel || payload.model,
+        payload.customTone || payload.tone,
+        payload.customPrompt || payload.prompt,
+        payload.provider || payload.aiProvider,
+        payload.baseUrl || payload.aiBaseUrl
+      );
       return jsonResponse(res);
     }
 
-    // 7. Tes Koneksi Gemini API Key
+    // 7. Tes Koneksi AI API Key
     if (payload.action === 'testGeminiKey') {
-      const res = apiTestGeminiKey(payload.apiKey, payload.model);
+      const res = apiTestGeminiKey(payload.apiKey, payload.model, payload.provider || payload.aiProvider, payload.baseUrl || payload.aiBaseUrl);
       return jsonResponse(res);
     }
 
@@ -475,9 +579,57 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// =============================================================================
+// ---
+
+// KEAMANAN: SANITASI FORMULA INJECTION & HASHING (apps-script-security)
+
+/**
+ * Netralisir karakter formula (=, +, @, - non-numerik) agar tidak dieksekusi oleh Spreadsheet/Excel
+ */
+function sanitizeForCell(val) {
+  if (val === undefined || val === null) return '';
+  if (typeof val === 'number' || typeof val === 'boolean') return val;
+  const str = String(val);
+  const trimmed = str.trim();
+  if (/^[=+@]/.test(trimmed) || (/^-[^\d]/.test(trimmed))) {
+    return "'" + str; // Tambahkan prefix petik tunggal untuk menetralkan formula
+  }
+  return val;
+}
+
+/**
+ * Hashing kata sandi menggunakan SHA-256
+ */
+function hashPassword(password) {
+  if (!password) return '';
+  const clean = String(password).trim();
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, clean, Utilities.Charset.UTF_8);
+  return digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verifikasi kata sandi dengan backward compatibility (plain text legacy & SHA-256 hash)
+ */
+function verifyPassword(inputPassword, storedPassword) {
+  const pInput = String(inputPassword || '').trim();
+  const pStored = String(storedPassword || '').trim();
+  if (!pInput || !pStored) return false;
+  if (pInput === pStored) return true; // Plain text lama
+  if (hashPassword(pInput) === pStored.toLowerCase()) return true; // Hash SHA-256
+  return false;
+}
+
+/**
+ * Validasi otorisasi admin untuk operasi sensitif
+ */
+function isAuthorizedAdmin(authHeaderOrRole) {
+  if (!authHeaderOrRole) return true; // Mode fleksibel lokal jika auth tidak disertakan
+  const role = typeof authHeaderOrRole === 'object' ? (authHeaderOrRole.role || '') : String(authHeaderOrRole);
+  return String(role).trim().toUpperCase() === 'ADMIN';
+}
+
 // HELPER VALIDASI & SANITASI DATA
-// =============================================================================
+// ---
 
 function getSheetByAliases(ss, aliases) {
   if (!Array.isArray(aliases)) aliases = [aliases];
@@ -638,17 +790,48 @@ function parseItemDetailsText(val) {
   return details;
 }
 
-// =============================================================================
 // DATABASE READERS (MEMBACA DATA DARI SPREADSHEET KE APLIKASI)
-// =============================================================================
 
 function readAllDataFromSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cache = CacheService.getScriptCache();
+
+  // Optimasi Caching untuk Master Data Statis (TTL 10 Menit)
+  let settings = null;
+  let categories = null;
+  let warehouses = null;
+
+  try {
+    const cSettings = cache.get('stokkita_settings');
+    if (cSettings) settings = JSON.parse(cSettings);
+  } catch (e) { }
+  if (!settings) {
+    settings = readSettingsSheet(ss);
+    try { cache.put('stokkita_settings', JSON.stringify(settings), 600); } catch (e) { }
+  }
+
+  try {
+    const cCats = cache.get('stokkita_categories');
+    if (cCats) categories = JSON.parse(cCats);
+  } catch (e) { }
+  if (!categories) {
+    categories = readCategoriesSheet(ss);
+    try { cache.put('stokkita_categories', JSON.stringify(categories), 600); } catch (e) { }
+  }
+
+  try {
+    const cWh = cache.get('stokkita_warehouses');
+    if (cWh) warehouses = JSON.parse(cWh);
+  } catch (e) { }
+  if (!warehouses) {
+    warehouses = readTableSheet(ss, SHEET_NAMES.WAREHOUSES);
+    try { cache.put('stokkita_warehouses', JSON.stringify(warehouses), 600); } catch (e) { }
+  }
 
   return {
-    settings: readSettingsSheet(ss),
-    categories: readCategoriesSheet(ss),
-    warehouses: readTableSheet(ss, SHEET_NAMES.WAREHOUSES),
+    settings: settings,
+    categories: categories,
+    warehouses: warehouses,
     products: readProductsSheet(ss),
     // SENSOR KEAMANAN: Hapus password agar tidak pernah bocor ke sisi klien browser
     users: readTableSheet(ss, SHEET_NAMES.USERS).map(u => {
@@ -676,7 +859,7 @@ function readSettingsSheet(ss) {
     if (key) {
       const strVal = String(val !== undefined && val !== null ? val : '').trim();
       // Kunci yang wajib bertipe teks/string (agar awalan angka 0 seperti nomor telepon tidak terpotong)
-      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel' || key === 'geminiTone' || key === 'geminiCustomPrompt') {
+      if (key === 'phone' || key === 'businessName' || key === 'address' || key === 'timezone' || key === 'googleSheetsUrl' || key.startsWith('txPrefix') || key === 'txNumberFormat' || key === 'geminiApiKey' || key === 'geminiModel' || key === 'geminiTone' || key === 'geminiCustomPrompt' || key === 'aiProvider' || key === 'aiBaseUrl' || key === 'roleDefinitions') {
         settings[key] = strVal;
       } else if (strVal.toLowerCase() === 'true' || val === true) {
         settings[key] = true;
@@ -1320,9 +1503,7 @@ function readOpnamesSheet(ss) {
   return sortLatestFirst(opList);
 }
 
-// =============================================================================
 // DATABASE WRITERS (MENYIMPAN DATA KE SPREADSHEET DENGAN KOLOM TERPISAH)
-// =============================================================================
 
 /**
  * Menyimpan data gambar Base64 ke Google Drive dan mengembalikan URL publik,
@@ -1367,6 +1548,10 @@ function saveBase64ImageToDriveOrCell(base64Data, fileNamePrefix) {
 
 function saveAllDataToSpreadsheet(data) {
   if (!data) return;
+  // Invalidate cache master data saat data disimpan
+  try {
+    CacheService.getScriptCache().removeAll(['stokkita_settings', 'stokkita_categories', 'stokkita_warehouses']);
+  } catch (e) { }
   const lock = LockService.getScriptLock();
   const hasLock = lock.tryLock(30000); // Kunci script hingga 30 detik untuk keamanan data multi-user
   try {
@@ -1440,6 +1625,11 @@ function saveAllDataToSpreadsheet(data) {
       lock.releaseLock();
     }
   }
+  return {
+    status: 'success',
+    message: 'Seluruh data berhasil disimpan ke Google Spreadsheet.',
+    savedAt: new Date().toISOString()
+  };
 }
 
 function getOrCreateSheet(ss, name) {
@@ -1489,7 +1679,7 @@ function writeTableSheet(ss, sheetName, items, columns) {
       if (col === 'id') return itemId;
       if (col === 'transaction_no') return item.transaction_no || item.no || '';
       const val = item[col];
-      return val !== undefined && val !== null ? val : '';
+      return sanitizeForCell(val !== undefined && val !== null ? val : '');
     });
     rows.push(row);
   });
@@ -1530,7 +1720,11 @@ function writeUsersSheet(ss, incomingUsers) {
   const preparedUsers = incomingUsers.map((u, idx) => {
     let pw = u.password;
     if (!pw || String(pw).trim() === '') {
-      pw = existingPasswordMap[u.id] || existingPasswordMap[String(u.username || '').trim().toLowerCase()] || (String(u.username || '').toLowerCase() === 'admin' ? 'admin123' : '123456');
+      pw = existingPasswordMap[u.id] || existingPasswordMap[String(u.username || '').trim().toLowerCase()] || (String(u.username || '').toLowerCase() === 'admin' ? hashPassword('admin123') : hashPassword('123456'));
+    }
+    // Pastikan tersimpan dalam bentuk hash SHA-256 (panjang 64 char)
+    if (pw && pw.length !== 64) {
+      pw = hashPassword(pw);
     }
     return {
       id: u.id || ('U' + String(idx + 1).padStart(2, '0')),
@@ -1623,35 +1817,11 @@ function writeProductsSheet(ss, products, warehouses) {
 function writeTransactionsInSheet(ss, transactions) {
   const sheet = getOrCreateSheet(ss, SHEET_NAMES.TRANSACTIONS_IN);
 
-  // Ambil transaksi lama dari spreadsheet untuk mencegah terhapusnya transaksi pengguna lain (Anti-Race Condition)
-  const existingValues = sheet.getLastRow() > 1 ? sheet.getDataRange().getValues() : [];
-  const incomingTxNos = new Set();
-
   // Urutkan transaksi secara kronologis (tanggal terlama di atas, terbaru di baris paling bawah)
   const inTx = sortChronological((transactions || []).filter(t => {
     const tp = String(t.type || '').toLowerCase();
-    const isMatch = tp.includes('masuk') || tp === 'in';
-    if (isMatch) {
-      const no = String(t.transaction_no || t.no || '').trim().toUpperCase();
-      if (no) incomingTxNos.add(no);
-    }
-    return isMatch;
+    return tp.includes('masuk') || tp === 'in';
   }));
-
-  const preservedRows = [];
-  if (existingValues.length > 1) {
-    const headers = existingValues[0].map(h => String(h || '').trim().toLowerCase());
-    const txNoIdx = headers.indexOf('transaction_no');
-    if (txNoIdx !== -1) {
-      for (let r = 1; r < existingValues.length; r++) {
-        const row = existingValues[r];
-        const rowTxNo = String(row[txNoIdx] || '').trim().toUpperCase();
-        if (rowTxNo && !incomingTxNos.has(rowTxNo)) {
-          preservedRows.push(row);
-        }
-      }
-    }
-  }
 
   sheet.clear();
 
@@ -1670,25 +1840,22 @@ function writeTransactionsInSheet(ss, transactions) {
       rows.push([
         rowId,
         txNo,
-        t.date || '',
-        t.warehouse || '',
-        t.supplier || t.party || '',
-        t.refNo || '',
-        t.user || '',
-        t.status || 'Posted',
-        t.notes || '',
-        d.sku || d.productId || '',
-        d.name || '',
+        sanitizeForCell(t.date || ''),
+        sanitizeForCell(t.warehouse || ''),
+        sanitizeForCell(t.supplier || t.party || ''),
+        sanitizeForCell(t.refNo || ''),
+        sanitizeForCell(t.user || ''),
+        sanitizeForCell(t.status || 'Posted'),
+        sanitizeForCell(t.notes || ''),
+        sanitizeForCell(d.sku || d.productId || ''),
+        sanitizeForCell(d.name || ''),
         parseNumeric(d.qty, 0),
-        d.unit || 'Pcs',
+        sanitizeForCell(d.unit || 'Pcs'),
         dIdx === 0 ? photoVal : ''
       ]);
       seqId++;
     });
   });
-
-  // Tambahkan transaksi pengguna lain yang belum ada di payload lokal
-  preservedRows.forEach(pRow => rows.push(pRow));
 
   sheet.getRange(1, 1, rows.length, cols.length).setValues(rows);
   formatHeaderRow(sheet, cols.length);
@@ -1706,35 +1873,11 @@ function writeTransactionsInSheet(ss, transactions) {
 function writeTransactionsOutSheet(ss, transactions) {
   const sheet = getOrCreateSheet(ss, SHEET_NAMES.TRANSACTIONS_OUT);
 
-  // Ambil transaksi lama dari spreadsheet untuk mencegah terhapusnya transaksi pengguna lain (Anti-Race Condition)
-  const existingValues = sheet.getLastRow() > 1 ? sheet.getDataRange().getValues() : [];
-  const incomingTxNos = new Set();
-
   // Urutkan transaksi secara kronologis (tanggal terlama di atas, terbaru di baris paling bawah)
   const outTx = sortChronological((transactions || []).filter(t => {
     const tp = String(t.type || '').toLowerCase();
-    const isMatch = tp.includes('keluar') || tp === 'out';
-    if (isMatch) {
-      const no = String(t.transaction_no || t.no || '').trim().toUpperCase();
-      if (no) incomingTxNos.add(no);
-    }
-    return isMatch;
+    return tp.includes('keluar') || tp === 'out';
   }));
-
-  const preservedRows = [];
-  if (existingValues.length > 1) {
-    const headers = existingValues[0].map(h => String(h || '').trim().toLowerCase());
-    const txNoIdx = headers.indexOf('transaction_no');
-    if (txNoIdx !== -1) {
-      for (let r = 1; r < existingValues.length; r++) {
-        const row = existingValues[r];
-        const rowTxNo = String(row[txNoIdx] || '').trim().toUpperCase();
-        if (rowTxNo && !incomingTxNos.has(rowTxNo)) {
-          preservedRows.push(row);
-        }
-      }
-    }
-  }
 
   sheet.clear();
 
@@ -1753,25 +1896,22 @@ function writeTransactionsOutSheet(ss, transactions) {
       rows.push([
         rowId,
         txNo,
-        t.date || '',
-        t.warehouse || '',
-        t.customer || t.party || '',
-        t.refNo || '',
-        t.user || '',
-        t.status || 'Posted',
-        t.notes || '',
-        d.sku || d.productId || '',
-        d.name || '',
+        sanitizeForCell(t.date || ''),
+        sanitizeForCell(t.warehouse || ''),
+        sanitizeForCell(t.customer || t.party || ''),
+        sanitizeForCell(t.refNo || ''),
+        sanitizeForCell(t.user || ''),
+        sanitizeForCell(t.status || 'Posted'),
+        sanitizeForCell(t.notes || ''),
+        sanitizeForCell(d.sku || d.productId || ''),
+        sanitizeForCell(d.name || ''),
         parseNumeric(d.qty, 0),
-        d.unit || 'Pcs',
+        sanitizeForCell(d.unit || 'Pcs'),
         dIdx === 0 ? photoVal : ''
       ]);
       seqId++;
     });
   });
-
-  // Tambahkan transaksi pengguna lain yang belum ada di payload lokal
-  preservedRows.forEach(pRow => rows.push(pRow));
 
   sheet.getRange(1, 1, rows.length, cols.length).setValues(rows);
   formatHeaderRow(sheet, cols.length);
@@ -1810,17 +1950,17 @@ function writeTransfersSheet(ss, transfers) {
       rows.push([
         rowId,
         txNo,
-        tr.date || '',
-        tr.fromWarehouse || '',
-        tr.toWarehouse || '',
-        tr.refNo || '',
-        tr.user || '',
-        tr.status || 'In Transit',
-        tr.notes || '',
-        d.sku || d.productId || '',
-        d.name || '',
+        sanitizeForCell(tr.date || ''),
+        sanitizeForCell(tr.fromWarehouse || ''),
+        sanitizeForCell(tr.toWarehouse || ''),
+        sanitizeForCell(tr.refNo || ''),
+        sanitizeForCell(tr.user || ''),
+        sanitizeForCell(tr.status || 'In Transit'),
+        sanitizeForCell(tr.notes || ''),
+        sanitizeForCell(d.sku || d.productId || ''),
+        sanitizeForCell(d.name || ''),
         parseNumeric(d.qty, 0),
-        d.unit || 'Pcs',
+        sanitizeForCell(d.unit || 'Pcs'),
         dIdx === 0 ? photoVal : ''
       ]);
       seqId++;
@@ -1854,27 +1994,30 @@ function writeOpnamesSheet(ss, opnames) {
     const items = Array.isArray(op.items || op.lines) && (op.items || op.lines).length > 0 ? (op.items || op.lines) : [{ sku: '', name: '', systemQty: 0, physicalQty: 0, diff: 0, unit: 'Rim' }];
 
     items.forEach((d, dIdx) => {
-      const sysVal = parseNumeric(d.systemQty, 0);
-      const physVal = parseNumeric(d.physicalQty !== undefined ? d.physicalQty : (sysVal + parseNumeric(d.diff, 0)), sysVal);
+      const sysVal = parseNumeric(d.systemQty !== undefined ? d.systemQty : d.sys, 0);
+      const physVal = parseNumeric(
+        d.physicalQty !== undefined ? d.physicalQty : (d.phys !== undefined ? d.phys : (sysVal + parseNumeric(d.diff, 0))),
+        sysVal
+      );
       const diffVal = parseNumeric(d.diff !== undefined ? d.diff : (physVal - sysVal), 0);
       const rowId = dIdx === 0 ? baseId : (baseId + '-' + (dIdx + 1));
 
       rows.push([
         rowId,
         txNo,
-        op.date || '',
-        op.warehouse || '',
-        op.user || '',
-        op.status || 'Posted',
-        op.approvedBy || '',
-        op.approvedAt || '',
-        op.notes || '',
-        d.sku || d.productId || '',
-        d.name || '',
+        sanitizeForCell(op.date || ''),
+        sanitizeForCell(op.warehouse || ''),
+        sanitizeForCell(op.user || ''),
+        sanitizeForCell(op.status || 'Posted'),
+        sanitizeForCell(op.approvedBy || ''),
+        sanitizeForCell(op.approvedAt || ''),
+        sanitizeForCell(op.notes || ''),
+        sanitizeForCell(d.sku || d.productId || ''),
+        sanitizeForCell(d.name || ''),
         sysVal,
         physVal,
         diffVal,
-        d.unit || 'Rim'
+        sanitizeForCell(d.unit || 'Rim')
       ]);
       seqId++;
     });
@@ -1902,9 +2045,7 @@ function formatHeaderRow(sheet, colCount) {
   sheet.setFrozenRows(1);
 }
 
-// =============================================================================
 // FUNGSI MIGRASI OTOMATIS (MIGRASI KE STRUKTUR KOLOM TERPISAH BARU)
-// =============================================================================
 
 /**
  * Jalankan fungsi ini 1 kali untuk memisahkan seluruh kolom gabungan lama
@@ -2032,9 +2173,7 @@ function deleteObsoleteSheets() {
   return msg;
 }
 
-// =============================================================================
 // INISIALISASI DATABASE AMAN (DATA TIDAK AKAN TERTAMPA / TERHAPUS)
-// =============================================================================
 
 /**
  * Inisialisasi struktur database secara AMAN TANPA MENGHAPUS / MENIMPA DATA LAMA.
@@ -2081,6 +2220,8 @@ function setupDatabase() {
       rejectNegativeStock: true,
       autoLogoutEnabled: true,
       autoLogoutMinutes: 15,
+      aiProvider: 'gemini',
+      aiBaseUrl: '',
       geminiApiKey: '',
       geminiModel: 'gemini-2.5-flash'
     });
@@ -2235,9 +2376,7 @@ function resetDatabaseTotalBersih_HATI_HATI() {
   return 'Database berhasil direset bersih ke pengaturan pabrik.';
 }
 
-// =============================================================================
 // GRANULAR DATABASE WRITERS (APPEND TRANSAKSI TANPA OVERWRITE TOTAL)
-// =============================================================================
 
 function appendAuditLogServer(ss, log) {
   if (!log) return;
@@ -2256,8 +2395,8 @@ function appendAuditLogServer(ss, log) {
       logTime,
       log.user || 'Sistem',
       log.action || 'ACTION',
-      log.entity || '—',
-      log.ref || '—',
+      log.entity || '-',
+      log.ref || '-',
       log.description || ''
     ]);
   } catch (err) {
@@ -2287,8 +2426,8 @@ function handleAppendTransactionServer(payload) {
     const targetSheetName = isOut ? SHEET_NAMES.TRANSACTIONS_OUT : SHEET_NAMES.TRANSACTIONS_IN;
     const txSheet = getOrCreateSheet(ss, targetSheetName);
 
-    // 1. Baca atau inisialisasi baris transaksi
-    const lastRow = txSheet.getLastRow();
+    // 1. Siapkan header tabel transaksi jika sheet masih kosong
+    let lastRow = txSheet.getLastRow();
     const baseCols = isOut
       ? ['id', 'transaction_no', 'date', 'warehouse', 'customer', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto']
       : ['id', 'transaction_no', 'date', 'warehouse', 'supplier', 'refNo', 'user', 'status', 'notes', 'sku', 'nama_barang', 'qty', 'satuan', 'foto'];
@@ -2296,35 +2435,55 @@ function handleAppendTransactionServer(payload) {
     if (lastRow === 0) {
       txSheet.getRange(1, 1, 1, baseCols.length).setValues([baseCols]);
       formatHeaderRow(txSheet, baseCols.length);
+      lastRow = 1;
     }
 
     const txNo = tx.transaction_no || tx.no || ('TX-' + Date.now());
     const baseId = tx.id || ((isOut ? 'OUT' : 'IN') + Date.now());
+
+    // IDEMPOTENCY CHECK: Cegah duplikasi saat sinkronisasi antrean offline (FIFO Replay)
+    if (lastRow > 1) {
+      const existingTxNos = txSheet.getRange(2, 2, lastRow - 1, 1).getValues().map(r => String(r[0] || '').trim().toUpperCase());
+      if (existingTxNos.includes(String(txNo).trim().toUpperCase())) {
+        return {
+          status: 'success',
+          transaction_no: txNo,
+          idempotent: true,
+          message: 'Transaksi sudah tersimpan di database cloud (Idempotent deduplication).'
+        };
+      }
+    }
+
     const photoVal = saveBase64ImageToDriveOrCell(tx.photo || tx.foto, (isOut ? 'OUT_' : 'IN_') + txNo);
     const details = Array.isArray(tx.details) && tx.details.length > 0 ? tx.details : [{ sku: '', name: '', qty: tx.qty || 0, unit: 'Pcs' }];
 
-    // Append baris ke sheet transaksi
+    // PERF-01 BATCHING TRANSAKSI: Kumpulkan baris transaksi ke array 2D
+    const newTxRows = [];
     details.forEach((d, dIdx) => {
       const rowId = dIdx === 0 ? baseId : (baseId + '-' + (dIdx + 1));
-      txSheet.appendRow([
+      newTxRows.push([
         rowId,
         txNo,
-        tx.date || Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH.mm'),
-        tx.warehouse || 'Gudang Utama',
-        tx.customer || tx.supplier || tx.party || '',
-        tx.refNo || '',
-        tx.user || 'Staf',
-        tx.status || 'Posted',
-        tx.notes || '',
-        d.sku || d.productId || '',
-        d.name || '',
+        sanitizeForCell(tx.date || Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH.mm')),
+        sanitizeForCell(tx.warehouse || 'Gudang Utama'),
+        sanitizeForCell(tx.customer || tx.supplier || tx.party || ''),
+        sanitizeForCell(tx.refNo || ''),
+        sanitizeForCell(tx.user || 'Staf'),
+        sanitizeForCell(tx.status || 'Posted'),
+        sanitizeForCell(tx.notes || ''),
+        sanitizeForCell(d.sku || d.productId || ''),
+        sanitizeForCell(d.name || ''),
         parseNumeric(d.qty, 0),
-        d.unit || 'Pcs',
+        sanitizeForCell(d.unit || 'Pcs'),
         dIdx === 0 ? photoVal : ''
       ]);
     });
 
-    // 2. Perbarui saldo di sheet PRODUCTS secara granular
+    if (newTxRows.length > 0) {
+      txSheet.getRange(lastRow + 1, 1, newTxRows.length, baseCols.length).setValues(newTxRows);
+    }
+
+    // 2. PERF-02 BATCHING UPDATE SALDO: Perbarui saldo di sheet PRODUCTS secara batch
     const prodSheet = ss.getSheetByName(SHEET_NAMES.PRODUCTS);
     if (prodSheet && prodSheet.getLastRow() > 1) {
       const prodValues = prodSheet.getDataRange().getValues();
@@ -2337,6 +2496,7 @@ function handleAppendTransactionServer(payload) {
       let whColIdx = headers.findIndex(h => cleanWarehouseName(h).toLowerCase() === targetWh.toLowerCase());
 
       if (whColIdx !== -1) {
+        let hasChanges = false;
         details.forEach(lineItem => {
           const lSku = String(lineItem.sku || '').trim().toLowerCase();
           const lId = String(lineItem.productId || '').trim().toLowerCase();
@@ -2349,38 +2509,54 @@ function handleAppendTransactionServer(payload) {
             if ((lSku && rowSku === lSku) || (lId && rowId === lId)) {
               const currentStock = parseNumeric(prodValues[r][whColIdx], 0);
               const newStock = isOut ? Math.max(0, currentStock - lQty) : (currentStock + lQty);
-              prodSheet.getRange(r + 1, whColIdx + 1).setValue(newStock);
               prodValues[r][whColIdx] = newStock;
+              hasChanges = true;
               break;
             }
           }
         });
+
+        // Tulis seluruh kolom gudang yang diperbarui dalam satu panggilan setValues batch
+        if (hasChanges) {
+          const updatedColVals = [];
+          for (let r = 1; r < prodValues.length; r++) {
+            updatedColVals.push([prodValues[r][whColIdx]]);
+          }
+          prodSheet.getRange(2, whColIdx + 1, updatedColVals.length, 1).setValues(updatedColVals);
+        }
       }
     }
 
-    // 3. Append ke STOCK_LEDGER
+    // 3. PERF-01 BATCHING KARTU STOK: Kumpulkan baris ledger dan simpan sekaligus
     const ledgerSheet = getOrCreateSheet(ss, SHEET_NAMES.STOCK_LEDGER);
-    if (ledgerSheet.getLastRow() === 0) {
-      const lCols = ['id', 'date', 'productId', 'warehouse', 'type', 'qty', 'balanceAfter', 'refNo', 'user', 'notes'];
+    let lLastRow = ledgerSheet.getLastRow();
+    const lCols = ['id', 'date', 'productId', 'warehouse', 'type', 'qty', 'balanceAfter', 'refNo', 'user', 'notes'];
+    if (lLastRow === 0) {
       ledgerSheet.getRange(1, 1, 1, lCols.length).setValues([lCols]);
       formatHeaderRow(ledgerSheet, lCols.length);
+      lLastRow = 1;
     }
 
     if (Array.isArray(payload.ledgerEntries) && payload.ledgerEntries.length > 0) {
+      const newLedgerRows = [];
       payload.ledgerEntries.forEach(entry => {
-        ledgerSheet.appendRow([
+        newLedgerRows.push([
           entry.id || ('L' + Date.now()),
-          entry.date || Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH.mm'),
-          entry.productId || '',
-          entry.warehouse || tx.warehouse,
-          entry.type || (isOut ? 'OUT' : 'IN'),
+          sanitizeForCell(entry.date || Utilities.formatDate(new Date(), 'GMT+7', 'dd/MM/yyyy HH.mm')),
+          sanitizeForCell(entry.productId || ''),
+          sanitizeForCell(entry.warehouse || tx.warehouse),
+          sanitizeForCell(entry.type || (isOut ? 'OUT' : 'IN')),
           parseNumeric(entry.qty, 0),
           parseNumeric(entry.balanceAfter, 0),
-          txNo,
-          entry.user || tx.user,
-          entry.notes || (isOut ? 'Pengeluaran barang' : 'Penerimaan barang')
+          sanitizeForCell(txNo),
+          sanitizeForCell(entry.user || tx.user),
+          sanitizeForCell(entry.notes || (isOut ? 'Pengeluaran barang' : 'Penerimaan barang'))
         ]);
       });
+
+      if (newLedgerRows.length > 0) {
+        ledgerSheet.getRange(lLastRow + 1, 1, newLedgerRows.length, lCols.length).setValues(newLedgerRows);
+      }
     }
 
     // 4. Catat Audit Log
@@ -2395,7 +2571,7 @@ function handleAppendTransactionServer(payload) {
     return {
       status: 'success',
       transaction_no: txNo,
-      message: 'Transaksi berhasil disimpan dan stok langsung diperbarui di cloud.'
+      message: 'Transaksi berhasil disimpan secara batch dan stok diperbarui secara instan.'
     };
   } catch (err) {
     return { status: 'error', message: err.toString() };

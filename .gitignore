@@ -1,0 +1,16 @@
+# Temporary & test scripts
+scratch/
+*.tmp
+*.bak
+*.log
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependencies & secrets
+node_modules/
+.env
+.env.local
